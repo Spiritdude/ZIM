@@ -1,0 +1,694 @@
+package ZIM;
+
+# == ZIM.pm ==
+#
+#    based on zimHttpServer.pl written by Pedro González (2012/04/06)
+#    turned into ZIM.pm by Rene K. Mueller
+#
+# Description:
+#   provides basic OO interface to ZIM files as provided by kiwix.org
+#
+# History:
+# 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
+
+our $NAME = "ZIM";
+our $VERSION = '0.0.1';
+
+use strict;
+use Search::Xapian;
+use JSON;
+
+sub new {
+   my($class) = shift;
+   my $self = { };
+   my $arg = shift;
+
+   bless($self,$class);
+
+   foreach my $k (keys %$arg) {
+      $self->{$k} = $arg->{$k};
+   }
+
+   @{$self->{error}} = ();
+
+   open (my $fh, $arg->{file}) || die "file not found <$arg->{file}>\n";
+
+   $self->{fh} = $fh;
+   # -- read zim header
+   read($fh, $_, 4); $self->{header}->{"magicNumber"} = unpack("c*"); # ZIM\x04
+   read($fh, $_, 4); $self->{header}->{"version"} = unpack("I");
+   read($fh, $_, 16); $self->{header}->{"uuid"} = unpack("H*");
+   read($fh, $_, 4); $self->{header}->{"articleCount"} = unpack("I");
+   read($fh, $_, 4); $self->{header}->{"clusterCount"} = unpack("I");
+   read($fh, $_, 8); $self->{header}->{"urlPtrPos"} = unpack("Q");
+   read($fh, $_, 8); $self->{header}->{"titlePtrPos"} = unpack("Q");
+   read($fh, $_, 8); $self->{header}->{"clusterPtrPos"} = unpack("Q");
+   read($fh, $_, 8); $self->{header}->{"mimeListPos"} = unpack("Q");
+   read($fh, $_, 4); $self->{header}->{"mainPage"} = unpack("I");
+   read($fh, $_, 4); $self->{header}->{"layoutPage"} = unpack("I");
+   read($fh, $_, 8); $self->{header}->{"checksumPos"} = unpack("Q");
+   
+   $self->{header}->{file} = $arg->{file};
+   
+   @_ = stat($arg->{file});      # -- retrieve metadata of zim file itself
+   $self->{header}->{filesize} = $_[7];
+   $self->{header}->{mtime} = $_[9];
+   
+   # -- load MIME TYPE LIST
+   my @mime;
+   seek($fh, $self->{header}->{"mimeListPos"}, 0); 
+   $/ = "\x00";
+   for(my $a=0; 1; $a++){
+   	my $b = <$fh>;
+   	chop($b);
+   	last, if($b eq "");
+   	$mime[$a] = $b;
+   }
+   $self->{mime} = \@mime;
+   $/ = "\n";
+   return $self;
+}
+
+sub info {
+   my $self = shift;
+   return $self->{header};
+}
+
+sub error {
+   my $self = shift;
+   return join("\n",@{$self->{error}});
+}
+
+# -- read ARTICLE NUMBER (sort by url) into URL POINTER LIST
+#    return ARTICLE NUMBER POINTER
+sub url_pointer {
+   my $self = shift;
+	my $article = shift;
+   my $fh = $self->{fh};
+	#push(@{$self->{error}},"article number $article exceeds $self->{header}->{articleCount}"), return ''
+   return -1 if $article >= $self->{header}->{"articleCount"};
+	my $pos = $self->{header}->{"urlPtrPos"};
+	$pos += $article*8;
+	seek($fh, $pos, 0);
+	read($fh, $_, 8); my $ret = unpack("Q");
+	return $ret;
+}
+
+# -- read ARTICLE NUMBER (sort by title) into TITLE POINTER LIST
+#    return ARTICLE NUMBER (not pointer)
+sub title_pointer {
+   my $self = shift;
+	my $article_by_title = shift;
+   my $fh = $self->{fh};
+   return -1 if $article_by_title >= $self->{header}->{"articleCount"};
+	my $pos = $self->{header}->{"titlePtrPos"};
+	$pos += $article_by_title*4;
+	seek($fh, $pos,0);
+	read($fh, $_, 4); my $ret = unpack("I");
+	return $ret;
+}
+
+# -- read ARTICLE NUMBER 
+#    load ARTICLE ENTRY that is point by ARTICLE NUMBER POINTER
+#       or load REDIRECT ENTRY
+sub entry {
+   # directory entries
+   # article entry
+   # redirect entry
+   my $self = shift;
+	my $article = shift;
+
+   my $fh = $self->{fh};
+	$self->{article} = undef;
+	$self->{article}->{number} = $article;
+
+	my $pos = $self->url_pointer($article);
+   return $pos if($pos<0);
+	seek($fh, $pos,0);
+	read($fh, $_, 2); $self->{article}->{"mimetype"} = unpack("s");
+	read($fh, $_, 1); $self->{article}->{"parameter_len"} = unpack("H*");
+	read($fh, $_, 1); $self->{article}->{"namespace"} = unpack("a");
+	read($fh, $_, 4); $self->{article}->{"revision"} = unpack("I");
+	if($self->{article}->{"mimetype"} < 0){
+		read($fh, $_, 4); $self->{article}->{"redirect_index"} = unpack("I");
+	} else {
+		read($fh, $_, 4); $self->{article}->{"cluster_number"} = unpack("I");
+		read($fh, $_, 4); $self->{article}->{"blob_number"} = unpack("I");
+	}
+	$/ = "\x00";
+	$self->{article}->{"url"} = <$fh>;
+	$self->{article}->{"title"} = <$fh>;
+	chop($self->{article}->{"url"});
+	chop($self->{article}->{"title"});
+	$/ = "\n";
+	read($fh, $_, $self->{article}->{"parameter_len"}); $self->{article}->{"parameter"} = unpack("H*");
+}
+
+# -- read CLUSTER NUMBER into CLUSTER POINTER LIST 
+#    return CLUSTER NUMBER POINTER
+sub cluster_pointer {
+   my $self = shift;
+	my $cluster = shift;
+   my $fh = $self->{fh};
+   if($cluster >= $self->{header}->{"clusterCount"}) {
+   	return $self->{header}->{"checksumPos"} 
+      #push(@{$self->{error}},"cluster_pointer: #$cluster exceeds maximum of $self->{header}->{clusterCount}");
+      #die "ZIM.pm: cluster #$cluster exceeds maximum of $self->{header}->{clusterCount}\n";
+      #return 0;
+   }
+	my $pos = $self->{header}->{"clusterPtrPos"};
+	$pos += $cluster*8;
+	seek($fh, $pos,0);
+	read($fh, $_, 8); my $ret = unpack("Q");
+	return $ret;
+}
+
+# -- read CLUSTER NUMBER
+#    decompress CLUSTER
+#    read BLOB NUMBER 
+sub cluster_blob {
+   my $self = shift;
+	my $cluster = shift;
+	my $blob = shift;
+   my $opts = shift;
+   my $fh = $self->{fh};
+	my $ret;
+
+   print "INF: #$$: cluster blob (cluster=$cluster)\n" if($self->{verbose});
+
+	my $pos = $self->cluster_pointer($cluster);
+	my $size = $self->cluster_pointer($cluster+1) - $pos - 1;
+   
+   print "INF: #$$: cluster blob (cluster=$cluster, pos=$pos, size=$size)\n" if($self->{verbose});
+   
+	seek($fh, $pos, 0);
+	my %cluster;
+	read($fh, $_, 1); $cluster{"compression_type"} = unpack("C");
+
+	# -- compressed?
+	if($cluster{"compression_type"} == 4) {
+		my $data;
+		read($fh, $data, $size);
+		my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
+
+      # -- FIXIT: use XZ library without creating tmp file -- OR -- keep it as extracted file could be huge and exceed memory
+      
+      # -- extract data separately
+		open(DATA, ">$file.xz");
+		print DATA $data;
+		close(DATA);
+
+		#`xz -d -f $file.xz`;
+      # -- decompress it
+      if(fork()==0) {
+         exec('xz','-d','-f',"$file.xz");
+      }
+      wait;
+
+		open(DATA, $file);
+		seek(DATA, $blob*4, 0);
+		read(DATA, $_, 4); my $posStart = unpack("I");
+		read(DATA, $_, 4); my $posEnd = unpack("I");
+		seek(DATA, $posStart, 0);
+		read(DATA, $ret, $posEnd-$posStart);
+		close(DATA);
+
+      unlink $file;
+      if($opts && $opts->{dest}) {
+         print "INF: #$$: writing $opts->{dest}\n" if($self->{verbose});
+         open(my $fhx,">",$opts->{dest});
+         print $fhx $ret;
+         close $fhx;
+      } else {
+   		return $ret;
+      }
+
+	} else {
+		my $data;
+		read($fh, $data, $size);
+		$_ = substr $data, $blob*4, 4;my $posStart = unpack("I");
+		$_ = substr $data, $blob*4+4, 4;my $posEnd = unpack("I");
+		$ret = substr $data, $posStart, $posEnd-$posStart;
+      if($opts && $opts->{dest}) {
+         print "INF: #$$: writing $opts->{dest}\n" if($self->{verbose});
+         open(my $fhx,">",$opts->{dest});
+         print $fhx $ret;
+         close $fhx;
+      } else {
+   		return $ret;
+      }
+	}
+}
+
+# -- read ARTICLE NUMBER
+#    return DATA
+sub output_articleNumber {
+   my $self = shift;
+	my $articleNumber = shift;
+   my $opts = shift;
+   print "INF: #$$: output_articleNumber: #$articleNumber\n" if($self->{verbose}>1);
+	while(1) {
+		my $p = $self->entry($articleNumber);
+      #print to_json($self->{article},{pretty=>1,canonical=>1});
+      push(@{$self->{error}},"article not found #$articleNumber"), return '' if($p<0);
+		if(defined $self->{article}->{"redirect_index"}) {
+			$articleNumber = $self->{article}->{"redirect_index"};
+		} else {
+         return $opts && $opts->{metadataOnly} ? 
+            $self->{article} : 
+            $self->cluster_blob($self->{article}->{"cluster_number"}, $self->{article}->{"blob_number"}, $opts);
+			last;
+		}
+	}
+}
+
+# -- search url 
+#    return DATA
+sub output_article {
+   my $self = shift;
+	my $url = shift;
+   my $opts = shift;
+	my $max = $self->{header}->{"articleCount"};
+	my $min = 0;
+	my $an;
+
+   if(!$url) {    # -- no url provided, then display mainPage
+      return $self->output_articleNumber($self->{header}->{mainPage},$opts);
+   }
+	while(1) {     # -- simple binary search
+		$an = int(($max+$min)/2);
+		my $p = $self->entry($an,$opts);
+      push(@{$self->{error}},"article <$url> not found"), return '' if($p<0);
+		if("/$self->{article}->{namespace}/$self->{article}->{url}" gt "$url") {
+			$max = $an-1;
+		} elsif("/$self->{article}->{namespace}/$self->{article}->{url}" lt "$url") {
+			$min = $an+1;
+		} else {
+			last;
+		}
+      # -- binary search (above) failed: we need to create an index, and fetch the title to compare
+		if($max < $min){
+			$self->{article} = undef;
+			$self->{article}->{url} = "pattern=$url";
+			$self->{article}->{namespace} = "SEARCH";
+			return "", unless $url =~ /^\/A/;
+         # ($url) = grep {length($_)>1} split(/[\/\.\s]/, $url);
+			$url =~ s#/A/##;
+         my $m;
+         foreach my $f ($self->index($url)) {
+            print "INF: #$$: > $_" if($self->{verbose});
+            $m .= "<a href=\"$_\">$_</a><br/>\n";
+			}
+			$self->{article}->{mimetype} = 0; # need for Content-Type: text/html; charset=utf-8
+			return $m;
+		}
+	}
+	return $self->output_articleNumber($an,$opts);
+}
+
+sub make_index {
+   my $self = shift;
+
+   # -- create index
+   my $file = $self->{file};
+   $file =~ s/zim$/index/;
+   unless(-e $file) {
+   	$| = 1;
+      print "INF: #$$: writing $file (index)\n" if($self->{verbose});
+      open(INDEX, ">$file");
+   	for(my $n = 0; $n<$self->{header}->{"articleCount"}; $n++) {
+   		$self->entry($n);
+   		print INDEX "/$self->{article}->{namespace}/$self->{article}->{url}\n";
+   		print "\r$n" if($self->{verbose} && ($n%100) == 0);
+   	}
+   	print "\n" if($self->{verbose});
+   	$| = 0;
+   	close(INDEX);
+   }
+}
+
+sub index {
+   my $self = shift;
+   my $url = shift;
+   my $file = $self->{file};
+
+   $file =~ s/zim$/index/;
+
+   my @r; 
+   
+   $self->make_index();
+   
+   # -- search index
+   print "INF: #$$: searching $url in $file\n" if($self->{verbose});
+   my $m = "";
+   open(INDEX, "$file");
+   while(<INDEX>){
+      chop;
+      print "INF: #$$: > $_\n" if($self->{verbose});
+      if($url) {
+         push(@r,$_) if(/$url/i);
+      } else {
+         push(@r,$_);
+      }
+   }
+   close(INDEX);
+   return \@r;
+}
+
+sub fts {
+   my $self = shift;
+   my $q = shift;
+   my $opts = shift;
+   my $file;
+   
+   $file->{fts} = $self->{file}; $file->{fts} =~ s/zim$/fts.xapian/;
+   $file->{title} = $self->{file}; $file->{title} =~ s/zim$/title.xapian/;
+
+   if(!-e $file->{fts}) {
+      print "INF: #$$: extract /X/fulltext/xapian -> $file->{fts}\n";
+      $self->output_article("/X/fulltext/xapian",{dest=>$file->{fts}}) 
+   }
+   if(!-e $file->{title}) {
+      print "INF: #$$: extract /X/title/xapian -> $file->{title}\n";
+      $self->output_article("/X/title/xapian",{dest=>$file->{title}}) 
+   }
+   my $file_xapian = $file->{$opts->{index}||'fts'};
+   print "INF: #$$: Xapian Index $file_xapian\n" if($self->{verbose}>1);
+   if(1) {
+      my $db = Search::Xapian::Database->new($file_xapian); 
+      my $enq = $db->enquire($q);
+      print "INF: #$$: Xapian Query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
+      my @r = $enq->matches(0,100);
+      my @re;
+      foreach my $m (@r) {
+         my $doc = $m->get_document();
+         my $e = { _id => $m->get_docid(), score => $m->get_percent()/100, _url => "/".$doc->get_data() };
+         $self->output_article($e->{_url},{metadataOnly=>1});
+         #foreach my $k (keys %{$self->{article}}) {
+         foreach my $k (qw(url title revision number)) {
+            $e->{$k} = $self->{article}->{$k};
+         }
+         $e->{id} = $e->{number}; delete $e->{number};
+         $e->{mimetype} = $e->{mimetype} >= 0 ? $self->{mime}->[$e->{mimetype}] : "";
+         #print to_json($e,{pretty=>1,canonical=>1});
+         push(@re,$e);
+      }
+      return \@re;
+   }
+   #if(!-e $file_tt && $self->output_article("/X/title/xapian",{dest=>$file_title})) {
+   #} 
+}
+
+# only for debug; program don't need it
+sub debug{
+   my $self = shift;
+	while(@_){
+		my ($k, $v) = (shift, shift);
+		print STDERR "\x1b[34;1m{$k} = $v\x1b[m\n";
+	}
+	print STDERR "\n";
+}
+# end subs for read into «file.zim»
+
+sub server {
+   # net connection (main procedure)
+   my $self = shift;
+   my $fh = $self->{fh};
+   my ($server_ip, $server_port) = ($self->{ip} || "127.0.0.1", $self->{port} || 8080);
+   my ($PF_UNIX, $PF_INET, $PF_IMPLINK, $PF_NS) = (1..4) ;
+   my ($SOCK_STREAM, $SOCK_DGRAM, $SOCK_RAW, $SOCK_SEQPACKET, $SOCK_RDM) = (1..5) ;
+   my ($d1, $d2, $prototype) = getprotobyname ("tcp");
+   socket(SSOCKET, $PF_INET, $SOCK_STREAM, $prototype) || die "socket: $!";
+   bind(SSOCKET, pack("SnCCCCx8", 2, $server_port, split(/\./,$server_ip))) || die "bind: $!";
+   listen(SSOCKET, 5) || die "connect: $!";
+   
+   print "\x1b[34m$0 $$: listen in localhost:8080\c[[33m
+write url «localhost:8080» in your web-browser.
+to search pattern write url «localhost:8080/pattern»; the first search require some minutes to create «file.index».
+if you know the url, write it («localhost:8080/url»).
+note: if url no found, then start search with pattern.
+\c[[31mpress C-c for exit.\c[[m\n";
+   
+   #	To create socket require to fork process.
+   #	Because the browser connect five socket simultaneously at "localhost:8080" each one ask a diferent url.
+   #
+   #	Note: The son process are terminated and they are found as defunct with ps program. I don't know it.
+   $SIG{CHLD} = 'IGNORE';
+   while(1){
+   # bucle for parent
+   	my $client_addr = accept(CSOCKET,SSOCKET) || die $!;
+   	last unless fork;
+   }
+   # only sons are connected
+   open ($fh, $self->{file}); # need reopen for son don't use same file handle
+   while(1){
+   	my $http_message;
+   #		read
+   	while(1){
+   		my $message_part;
+   		recv(CSOCKET, $message_part, 1000, 0);
+   		$http_message .= $message_part;
+   		last, if(length($message_part)<1000);
+   	}
+   #	print STDERR "\x1b[32m$$:\c[[m\n";
+   #	print STDERR "\x1b[32;1m$http_message\c[[m";
+   
+   #		write
+   	if($http_message =~  /^GET (.+) HTTP\/1.1\r\n/){
+   # Request-Line Request HTTP-message
+   # ("OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "CONNECT", "$token+");
+   		my $url = $1;
+   		$url =~ s/%(..)/chr(hex($1))/eg;
+   		$url = "/A/index.html", if $url eq "/";
+   		$url = "/-/favicon", if $url eq "/favicon.ico";
+   #		$url =~ s#(/.*?/.*?)$#$1#;
+   		$url = "/A$url", unless $url =~ "/.*/";  # for search
+   		my $message_body  = $self->output_article($url);
+   		my $message_body_length = length($message_body);
+   		my $message_body_type = $self->{mime}->[$self->{article}->{"mimetype"}];
+   #		print STDERR "\x1b[31m$$: sending ... $self->{article}->{number} \c[[41;38;1m/$self->{article}->{namespace}/$self->{article}->{url}\c[[m\n";
+   		my $message = "HTTP/1.1 200 OK\r
+Connection: Keep-Alive\r
+Keep-Alive: timeout=30\r
+Content-Type: $message_body_type\r
+Content-Length: $message_body_length\r
+\r
+$message_body";
+   		send (CSOCKET, $message, 0)||last;
+   	} else {
+   		last;
+   	}
+   }
+   
+   shutdown(CSOCKET, 2) ;
+   close($fh);
+
+   #print STDERR "\x1b[31;42m$$: goodbye\c[[m\n";
+   # son defunct
+}
+1;
+__END__
+
+=pod
+
+=head1 NAME
+
+=head1 SYNOPSIS
+
+	url_pointer
+
+	title_pointer
+
+	entry
+
+	cluster_pointer
+
+	cluster_blob
+
+	output_articleNumber
+
+	output_article
+
+	debug
+
+=head1 DESCRIPTION
+
+=over 2
+
+=item needs
+
+	it need «xz» program for decompress cluster.
+	it use «rm» command.
+	it create files in «/tmp/» directory.
+	it's tested in Ubuntu and Sabayon operating systems.
+
+=item input
+
+	use:
+zim.pl file.zim
+
+	zim.pl can create file.index for search pattern.
+	when create file.index, program work very time; be patient.
+
+=item output
+
+socket connect at localhost:8080
+	open url "localhost:8080" with web browser
+
+	Temporaly it make files into tmp directory for decompress clusters
+/tmp/file_cluster$cluster-pid$$
+	it delete these files immediately.
+
+	To create socket require to fork process.
+	Because the browser connect five socket simultaneously at "localhost:8080" each one ask a diferent url.
+
+	Note: The son process are terminated and they are found as defunct with ps program. I don't know it.
+
+=back
+
+=head1 METHODS
+
+=over 2
+
+=item url_pointer
+
+	L<url_pointer>
+
+=item title_pointer
+
+	L<title_pointer>
+
+=item entry
+
+	L<entry>
+
+=item cluster_pointer
+
+	L<cluster_pointer>
+
+=item cluster_blob
+
+	L<cluster_blob>
+
+=item output_articleNumber
+
+	L<output_articleNumber>
+
+=item output_article
+
+	L<output_article>
+
+=item debug
+
+	L<debug>
+
+=back
+
+=head2 header
+	%header = (
+		"magicNumber" => ZIM\x04,
+		"version" => ,
+		"uuid" => ,
+		"articleCount" => ,
+		"clusterCount" => ,
+		"urlPtrPos" => ,
+		"titlePtrPos" => ,
+		"clusterPtrPos" => ,
+		"mainPage" => ,
+		"checksumPos" => )
+
+=head2 mime
+
+	@mime = (
+		"txt/html; charset=utf8",
+		"",
+		...)
+
+=head2 url_pointer(article_number)
+
+	article_number is sort by url.
+	return C<pointer> to article number.
+
+=head2 title_pointer(article_number)
+
+	article_number is sort by title.
+	return C<article_number> sort by url.
+
+=head2 entry(article_number)
+
+	article_number is sort by url.
+	load in hash %article the entry.
+	%article = (
+		"number" => article_number,
+		"mimetype" => integer, # see L<mimetype>
+		"parameter_len" => 0, # no used
+		"namespace" => char,
+		"revision" => number,
+	if(mimetype eq 0xFF)
+			"redirect_index" => article_number,
+	else
+			"cluster_number" => cluster_number,
+			"blob_number" => blob_number,
+		"url" => string,
+		"title" => string)
+	
+
+=head2 cluster_pointer(cluster_number)
+
+	return cluster_number_pointer
+
+=head2 cluster_blob(cluster_number, blob_number)
+
+	return data
+
+=head2 output_articleNumber(article_number)
+
+	return data
+
+=head2 output_article(url)
+
+	search the url and return data,
+	or search pattern into file.index and return list of item;
+	and make file.index if not exist.
+
+	main subrutine of subrutines
+
+	example:
+output_article("/A/wikipedia.html");
+
+	search "/A/wikipedia.html" into file.zim
+	return page
+	the web browser need other files as file.css file.js image.png
+output_article("/I/favicon");
+
+output_article("/A/Jordan");
+	no found page named /A/Jordan.
+	This url start with "/A/" and it start to search.
+	It create file.index and search into .zim file,
+	which pattern is "Jordan",
+	and return list of url which are found with pattern.
+
+output_article("Jordan");
+	no found and return null string.
+
+output_article("/I/Jordan");
+	no found and return null string.
+
+=head2 debug
+
+...
+
+=head1 LICENSE
+
+This program is free software; you may redistribute it and/or modify it under some terms.
+
+=head1 SEE ALSO
+
+=head1 AUTHORS
+
+Original code by Pedro González.
+Released 4-6-2012.
+yaquitobi@gmail.com
+Comment by Pedro, but I'm not english speaker, excuse me my mistakes.
+
+=cut

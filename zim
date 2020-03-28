@@ -1,0 +1,103 @@
+#!/usr/bin/perl
+
+# == zim CLI (Command Line Interface)
+#  written by Rene K. Mueller
+#
+my $APPNAME = 'zim';
+my $VERSION = '0.0.1';
+#
+# History:
+# 2020/03/28: 0.0.1: starting ZIM.pm and zim tool
+
+BEGIN { push @INC,".","$ENV{HOME}/lib/perl5" }
+
+use strict;
+use JSON;
+use ZIM;
+
+my $arg;
+my %s2f = ( v => 'verbose' );
+my @a;
+foreach(@ARGV) {
+   if(/^-(\w+)/) {
+      foreach(split(/|/,$1)) {
+         $arg->{$s2f{$_}}++;
+      }
+   } elsif(/^--(\w+)$/) {
+      $arg->{$1}++;
+   } elsif(/^--(\w+)=(\S*)$/) {
+      $arg->{$1} = $2;
+   } else {
+      push(@a,$_);
+   }
+}
+@ARGV = @a;
+
+if($arg->{version}) {
+   print "$APPNAME $VERSION (ZIM $ZIM::VERSION)\n";
+   exit 0;
+}
+my $zim = $arg->{file} = shift(@ARGV);
+unless(-e $zim) {
+   help();
+   exit -1;
+}
+my $z = ZIM->new($arg);
+my $cmd = shift(@ARGV);
+
+if($cmd eq 'info' || $cmd eq 'i') {
+   print to_json($z->info(),{pretty=>1,canonical=>1});
+
+} elsif($cmd eq 'article' || $cmd eq 'a' || $cmd eq '') {
+   @ARGV = ( '' ) unless(@ARGV);
+   foreach (@ARGV) {
+      #$z->server();
+      print $z->output_article($_);
+      if($z->error()) {
+         print "ERR: ".$z->error()."\n";
+      }
+   }
+
+} elsif($cmd eq 'index' || $cmd eq 'ix' || $cmd eq 'ls') {
+   my $n = 0;
+   foreach my $i (@{$z->index(shift(@ARGV))}) {
+      print "$n: $i\n";
+      $n++;
+   }
+   
+} elsif($cmd eq 'query' || $cmd eq 'search' || $cmd eq 'q') {
+   my $q = shift(@ARGV);
+   foreach my $i (@{$z->fts($q,$arg)}) {
+      print to_json($i,{pretty=>0,canonical=>1})."\n";
+   }
+
+} else {
+   help();
+}
+
+sub help {
+   print "USAGE ${APPNAME} $VERSION: [<opts>] <zimfile> <cmd> [<arguments>]
+   options:
+      --verbose         increase verbosity
+      -v or -vvv           \"        \"
+      --version         print version and exit
+      --index=<ix>      define which xapian index to consider, fts or title (default: fts)
+      
+   commands:
+      info            show info of zim file
+         i                \"         \"
+      article [<u>..] arguments are optional as url(s) of the articles
+         a [<u>..]        \"         \"
+      query <q>       query internal xapian indices (fts or title), use --index=title to switch
+         search <q>       \"                  \"
+         q <q>            \"                  \"
+      
+   examples:
+      zim test.zim                  displays default page
+      zim test.zim i                display info of zim file
+      zim test.zim a test           list urls of matching filenames
+      zim test.zim q test           query fts using internal xapian index (if there are such)
+      zim test.zim --index=title q test     query fts but only titles
+
+";
+}
