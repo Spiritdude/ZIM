@@ -343,8 +343,7 @@ sub index {
    $self->make_index();
    
    # -- search index
-   print "INF: #$$: searching $url in $file\n" if($self->{verbose});
-   my $m = "";
+   print "INF: #$$: searching '$url' in $file\n" if($self->{verbose});
    open(INDEX, "$file");
    while(<INDEX>){
       chop;

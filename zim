@@ -92,6 +92,9 @@ sub help {
    commands:
       info            show info of zim file
          i                \"         \"
+      index           list all entries
+         ix               \"         \"
+         ls               \"         \"
       article [<u>..] arguments are optional as url(s) of the articles
          a [<u>..]        \"         \"
       query <q>       query internal xapian indices (fts or title), use --index=title to switch
