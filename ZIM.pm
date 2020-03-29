@@ -1,7 +1,6 @@
 package ZIM;
 
 # == ZIM.pm ==
-#
 #    based on zimHttpServer.pl written by Pedro González (2012/04/06)
 #    turned into ZIM.pm by Rene K. Mueller (2020/03/28) with enhancements as listed below
 #
@@ -9,11 +8,12 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/03/29: 0.0.3: server() barely functional
 # 2020/03/29: 0.0.2: fts() with kiwix full text xapian-based indexes (fts and title) support
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.2';
+our $VERSION = '0.0.3';
 
 use strict;
 use Search::Xapian;
@@ -178,12 +178,12 @@ sub cluster_blob {
    my $fh = $self->{fh};
 	my $ret;
 
-   print "INF: #$$: cluster blob (cluster=$cluster)\n" if($self->{verbose});
+   print "INF: #$$: cluster blob (cluster=$cluster)\n" if($self->{verbose}>2);
 
 	my $pos = $self->cluster_pointer($cluster);
 	my $size = $self->cluster_pointer($cluster+1) - $pos - 1;
    
-   print "INF: #$$: cluster blob (cluster=$cluster, pos=$pos, size=$size)\n" if($self->{verbose});
+   print "INF: #$$: cluster blob (cluster=$cluster, pos=$pos, size=$size)\n" if($self->{verbose}>2);
    
 	seek($fh, $pos, 0);
 	my %cluster;
@@ -417,20 +417,18 @@ sub server {
    # net connection (main procedure)
    my $self = shift;
    my $fh = $self->{fh};
-   my ($server_ip, $server_port) = ($self->{ip} || "127.0.0.1", $self->{port} || 8080);
+
+   $self->{port} = $self->{port} || 8080;
+   $self->{ip} = $self->{ip} || '127.0.0.1';
+
+   my ($server_ip, $server_port) = ($self->{ip}, $self->{port});
    my ($PF_UNIX, $PF_INET, $PF_IMPLINK, $PF_NS) = (1..4) ;
    my ($SOCK_STREAM, $SOCK_DGRAM, $SOCK_RAW, $SOCK_SEQPACKET, $SOCK_RDM) = (1..5) ;
    my ($d1, $d2, $prototype) = getprotobyname ("tcp");
+
    socket(SSOCKET, $PF_INET, $SOCK_STREAM, $prototype) || die "ZIM.pm: ERR: socket: $!";
    bind(SSOCKET, pack("SnCCCCx8", 2, $server_port, split(/\./,$server_ip))) || die "ZIM.pm: ERR: bind: $!";
    listen(SSOCKET, 5) || die "ZIM.pm: ERR: connect: $!";
-   
-   print "\x1b[34m$0 $$: listen in localhost:8080\c[[33m
-write url «localhost:8080» in your web-browser.
-to search pattern write url «localhost:8080/pattern»; the first search require some minutes to create «file.index».
-if you know the url, write it («localhost:8080/url»).
-note: if url no found, then start search with pattern.
-\c[[31mpress C-c for exit.\c[[m\n";
    
    #	To create socket require to fork process.
    #	Because the browser connect five socket simultaneously at "localhost:8080" each one ask a diferent url.
@@ -443,49 +441,50 @@ note: if url no found, then start search with pattern.
    	last unless fork;
    }
    # only sons are connected
-   open ($fh, $self->{file}); # need reopen for son don't use same file handle
+   open(my $fh,"<",$self->{file});
+   $self->{fh} = $fh;
    while(1){
    	my $http_message;
-   #		read
    	while(1){
    		my $message_part;
    		recv(CSOCKET, $message_part, 1000, 0);
    		$http_message .= $message_part;
    		last, if(length($message_part)<1000);
    	}
-   #	print STDERR "\x1b[32m$$:\c[[m\n";
-   #	print STDERR "\x1b[32;1m$http_message\c[[m";
-   
    #		write
    	if($http_message =~  /^GET (.+) HTTP\/1.1\r\n/){
    # Request-Line Request HTTP-message
    # ("OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "CONNECT", "$token+");
    		my $url = $1;
+         print "INF: #$$: server: requested $url\n" if($self->{verbose});
    		$url =~ s/%(..)/chr(hex($1))/eg;
-   		$url = "/A/index.html", if $url eq "/";
+   		$self->entry($self->{header}->{mainPage}), $url = "/".$self->{article}->{namespace}."/".$self->{article}->{url} if $url eq "/";
+         print "INF: #$$: server:   serving $url\n" if($self->{verbose});
+
    		$url = "/-/favicon", if $url eq "/favicon.ico";
    #		$url =~ s#(/.*?/.*?)$#$1#;
    		$url = "/A$url", unless $url =~ "/.*/";  # for search
-   		my $message_body  = $self->output_article($url);
-   		my $message_body_length = length($message_body);
-   		my $message_body_type = $self->{mime}->[$self->{article}->{"mimetype"}];
+
+   		my $body  = $self->output_article($url);
+   		my $sz = length($body);
+   		my $mime = $self->{mime}->[$self->{article}->{"mimetype"}];
+
    #		print STDERR "\x1b[31m$$: sending ... $self->{article}->{number} \c[[41;38;1m/$self->{article}->{namespace}/$self->{article}->{url}\c[[m\n";
-   		my $message = "HTTP/1.1 200 OK\r
-Connection: Keep-Alive\r
-Keep-Alive: timeout=30\r
-Content-Type: $message_body_type\r
-Content-Length: $message_body_length\r
-\r
-$message_body";
-   		send (CSOCKET, $message, 0)||last;
+         my $m = join("\r\n",
+            "HTTP/1.1 200 OK",
+            "Connection: Keep-Alive",
+            "Keep-Alive: timeout=30",
+            "Content-Type: $mime",
+            "Content-Length: $sz","",$body);
+   		send (CSOCKET, $m, 0) || last;
    	} else {
    		last;
    	}
    }
-   
+   wait;
    shutdown(CSOCKET, 2) ;
    close($fh);
-
+   
    #print STDERR "\x1b[31;42m$$: goodbye\c[[m\n";
    # son defunct
 }

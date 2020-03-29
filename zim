@@ -4,9 +4,10 @@
 #  written by Rene K. Mueller
 #
 my $APPNAME = 'zim';
-my $VERSION = '0.0.3';
+my $VERSION = '0.0.4';
 #
 # History:
+# 2020/03/29: 0.0.4: 'server' enabled, very experimental web-server functionality
 # 2020/03/29: 0.0.3: 'extract' or 'x' to extract files
 # 2020/03/29: 0.0.2: fts() with 'query' or 'q' supported
 # 2020/03/28: 0.0.1: starting ZIM.pm and zim tool
@@ -20,6 +21,10 @@ use Time::HiRes 'time';
 
 my $arg;
 my %s2f = ( v => 'verbose', e => 'regexp', i => 'case_insens' );
+
+$arg->{index} = 'fts';
+$arg->{port} = 8080;
+$arg->{ip} = '0.0.0.0';
 
 my @a;
 foreach(@ARGV) {
@@ -105,7 +110,9 @@ if($cmd eq 'info' || $cmd eq 'i') {
    }
 
 } elsif($cmd eq 'server') {
+   print "== zim web-server $VERSION ($ZIM::NAME $ZIM::VERSION), listening on $arg->{ip}:$arg->{port}\n";
    $z->server();
+
 } else {
    help();
 }
@@ -116,11 +123,13 @@ sub help {
       --verbose         increase verbosity
         -v or -vvv         \"        \"
       --version         print version and exit
-      --index=<ix>      define which xapian index to consider, fts or title (default: fts)
+      --index=<ix>      define which xapian index to consider, fts or title (default: $arg->{index})
       --regexp          treat args as regexp, in combination of 'article', 'extract' commands
         -e                       \"                      \"
-      --case_insens     case-insensivity, in combination of 'search', and -e with 'article' and 'extract'
+      --case_insens     case-insensitivity, in combination of 'search', and -e with 'article' and 'extract'
         -i                       \"         \"
+      --port=<p>        set port for server (default: $arg->{port})
+      --ip=<ip>         set address to bind server (default: $arg->{ip})
 
    commands:
       info              show info of zim file
@@ -136,6 +145,7 @@ sub help {
          x [<u>..]          \"                  \"
       query <q>         query internal xapian indices (fts or title), use --index=title to switch
          q <q>              \"                  \"
+      server            start web-server serving zim-file content
       
    examples:
       zim test.zim                  displays default page
@@ -148,6 +158,7 @@ sub help {
       zim test.zim -e x '\.png'     extract article content matching regexp
       zim test.zim q test           query fts using internal xapian index (if there are such)
       zim test.zim --index=title q test     query fts but only titles
+      zim test.zim server           start web-server
 
 ";
 }
