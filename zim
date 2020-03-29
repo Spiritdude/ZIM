@@ -117,7 +117,7 @@ sub help {
         -v or -vvv         \"        \"
       --version         print version and exit
       --index=<ix>      define which xapian index to consider, fts or title (default: fts)
-      --regexp          treats arg as regexp, in combination of 'article', 'extract' commands
+      --regexp          treat args as regexp, in combination of 'article', 'extract' commands
         -e                       \"                      \"
       --case_insens     case-insentivity, in combination of 'search', and -e with 'article' and 'extract'
         -i                       \"         \"
