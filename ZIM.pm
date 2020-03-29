@@ -349,7 +349,7 @@ sub index {
       chop;
       print "INF: #$$: > $_\n" if($self->{verbose});
       if($url) {
-         push(@r,$_) if(/$url/i);
+         push(@r,$_) if($self->{case_insens} && /$url/i || /$url/);
       } else {
          push(@r,$_);
       }

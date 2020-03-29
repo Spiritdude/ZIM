@@ -18,7 +18,7 @@ use ZIM;
 use Time::HiRes 'time';
 
 my $arg;
-my %s2f = ( v => 'verbose' );
+my %s2f = ( v => 'verbose', e => 'regexp', i => 'case_insens' );
 
 my @a;
 foreach(@ARGV) {
@@ -54,18 +54,23 @@ if($cmd eq 'info' || $cmd eq 'i') {
 } elsif($cmd eq 'article' || $cmd eq 'a' || $cmd eq '') {
    @ARGV = ( '' ) unless(@ARGV);
    foreach (@ARGV) {
-      #$z->server();
-      print $z->output_article($_);
+      if($arg && $arg->{regexp}) {
+         foreach my $e (@{$z->index($_)}) {
+            print "== $e\n";
+            print $z->output_article($e);
+            print "\n";
+         }
+      } else {
+         print $z->output_article($_);
+      }
       if($z->error()) {
-         print "ERR: ".$z->error()."\n";
+         print "$APPNAME: ERR: ".$z->error()."\n";
       }
    }
 
 } elsif($cmd eq 'index' || $cmd eq 'ix' || $cmd eq 'ls') {
-   my $n = 0;
    foreach my $i (@{$z->index(shift(@ARGV))}) {
-      print "$n: $i\n";
-      $n++;
+      print "$i\n";
    }
    
 } elsif($cmd eq 'query' || $cmd eq 'search' || $cmd eq 'q') {
@@ -77,6 +82,8 @@ if($cmd eq 'info' || $cmd eq 'i') {
       print to_json($i,{pretty=>0,canonical=>1}),"\n";
    }
 
+} elsif($cmd eq 'server') {
+   $z->server();
 } else {
    help();
 }
@@ -85,17 +92,21 @@ sub help {
    print "USAGE ${APPNAME} $VERSION: [<opts>] <zimfile> <cmd> [<arguments>]
    options:
       --verbose         increase verbosity
-      -v or -vvv           \"        \"
+        -v or -vvv         \"        \"
       --version         print version and exit
       --index=<ix>      define which xapian index to consider, fts or title (default: fts)
-      
+      --regexp          with 'article' or 'a', treat arguments as regular expressions
+        -e                       \"                      \"
+      --case_insens     case-insentivity in combination with '-e' only
+        -i                       \"         \"
+
    commands:
       info            show info of zim file
          i                \"         \"
-      index           list all entries
+      index [<m>]     list all entries with optional match (use optionally -i)
          ix               \"         \"
          ls               \"         \"
-      article [<u>..] arguments are optional as url(s) of the articles
+      article [<u>..] arguments are optional as url(s) of the articles (use -e and perhaps -i)
          a [<u>..]        \"         \"
       query <q>       query internal xapian indices (fts or title), use --index=title to switch
          search <q>       \"                  \"
@@ -104,6 +115,7 @@ sub help {
    examples:
       zim test.zim                  displays default page
       zim test.zim i                display info of zim file
+      zim test.zim ix               display entire index of zim file
       zim test.zim a test           list urls of matching filenames
       zim test.zim q test           query fts using internal xapian index (if there are such)
       zim test.zim --index=title q test     query fts but only titles
