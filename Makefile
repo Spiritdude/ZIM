@@ -2,11 +2,11 @@ NAME=ZIM
 VERSION=0.0.1
 
 all::
-	@echo "make install deinstall edit backup git changes push pull"
+	@echo "make install deinstall edit backup git change push pull"
 
 requirements::
 	sudo apt -y install libxapian-dev 
-	sudo cpan Search::Xapian JSON
+	sudo cpan Search::Xapian JSON Time::HiRes
 
 install::
 	mkdir -p ~/lib/perl5
@@ -25,7 +25,7 @@ edit::
 
 git::
 
-changes::
+change::
 	git commit -am "..."
 
 push::

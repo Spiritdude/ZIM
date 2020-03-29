@@ -14,9 +14,11 @@ BEGIN { push @INC,".","$ENV{HOME}/lib/perl5" }
 use strict;
 use JSON;
 use ZIM;
+use Time::HiRes 'time';
 
 my $arg;
 my %s2f = ( v => 'verbose' );
+
 my @a;
 foreach(@ARGV) {
    if(/^-(\w+)/) {
@@ -67,8 +69,11 @@ if($cmd eq 'info' || $cmd eq 'i') {
    
 } elsif($cmd eq 'query' || $cmd eq 'search' || $cmd eq 'q') {
    my $q = shift(@ARGV);
-   foreach my $i (@{$z->fts($q,$arg)}) {
-      print to_json($i,{pretty=>0,canonical=>1})."\n";
+   my $st = time();
+   my $r = $z->fts($q,$arg);
+   printf "%d results (%.1fms):",scalar(@$r),(time()-$st)*1000 if($arg->{verbose});
+   foreach my $i (@$r) {
+      print to_json($i,{pretty=>0,canonical=>1}),"\n";
    }
 
 } else {

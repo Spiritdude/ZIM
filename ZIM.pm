@@ -16,6 +16,7 @@ our $VERSION = '0.0.1';
 
 use strict;
 use Search::Xapian;
+use Time::HiRes 'time';
 use JSON;
 
 sub new {
@@ -23,6 +24,8 @@ sub new {
    my $self = { };
    my $arg = shift;
 
+   die "ZIM.pm: ERR: zim file must end with .zim, '$arg->{file}' does not\n" unless($arg->{file}=~/\.zim$/);
+   
    bless($self,$class);
 
    foreach my $k (keys %$arg) {
@@ -382,7 +385,7 @@ sub fts {
       my @re;
       foreach my $m (@r) {
          my $doc = $m->get_document();
-         my $e = { _id => $m->get_docid(), score => $m->get_percent()/100, _url => "/".$doc->get_data() };
+         my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, _url => "/".$doc->get_data() };
          $self->output_article($e->{_url},{metadataOnly=>1});
          #foreach my $k (keys %{$self->{article}}) {
          foreach my $k (qw(url title revision number)) {
