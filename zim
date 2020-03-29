@@ -56,7 +56,7 @@ if($cmd eq 'info' || $cmd eq 'i') {
    @ARGV = ( '' ) unless(@ARGV);
    foreach my $u (@ARGV) {
       if($arg && $arg->{regexp}) {
-         foreach my $e (@{$z->index($_)}) {
+         foreach my $e (@{$z->index($u)}) {
             my $fout = $e; $fout =~ s/.+\///;
             if($cmd eq 'extract' || $cmd eq 'x') {
                print "== $e -> $fout\n";
@@ -66,8 +66,8 @@ if($cmd eq 'info' || $cmd eq 'i') {
             } else {
                print "== $e\n";
                print $z->output_article($e);
+               print "\n";
             }
-            print "\n";
          }
       } else {
          if($cmd eq 'extract' || $cmd eq 'x') {
@@ -119,7 +119,7 @@ sub help {
       --index=<ix>      define which xapian index to consider, fts or title (default: fts)
       --regexp          treat args as regexp, in combination of 'article', 'extract' commands
         -e                       \"                      \"
-      --case_insens     case-insentivity, in combination of 'search', and -e with 'article' and 'extract'
+      --case_insens     case-insensivity, in combination of 'search', and -e with 'article' and 'extract'
         -i                       \"         \"
 
    commands:
@@ -145,7 +145,7 @@ sub help {
       zim test.zim a /A/Test        output article(s)
       zim test.zim -e -i a test     output articles matching terms case-insensitive
       zim test.zim x /A/Test        extract article content as file(s)
-      zim test.zim -e x .png        extract article content matching regexp
+      zim test.zim -e x '\.png'     extract article content matching regexp
       zim test.zim q test           query fts using internal xapian index (if there are such)
       zim test.zim --index=title q test     query fts but only titles
 
