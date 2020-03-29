@@ -24,11 +24,14 @@ edit::
 	dee4 zim ZIM.pm Makefile README.md
 
 git::
-
+	git remote add origin git@git:${NAME}
+	git remote set-url origin git@git:${NAME}
+        
 change::
 	git commit -am "..."
 
 push::
+	git push -u origin master
 
 pull::
 	git pull
