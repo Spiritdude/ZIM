@@ -4,9 +4,10 @@
 #  written by Rene K. Mueller
 #
 my $APPNAME = 'zim';
-my $VERSION = '0.0.2';
+my $VERSION = '0.0.3';
 #
 # History:
+# 2020/03/29: 0.0.3: 'extract' or 'x' to extract files
 # 2020/03/29: 0.0.2: fts() with 'query' or 'q' supported
 # 2020/03/28: 0.0.1: starting ZIM.pm and zim tool
 
@@ -51,17 +52,33 @@ my $cmd = shift(@ARGV);
 if($cmd eq 'info' || $cmd eq 'i') {
    print to_json($z->info(),{pretty=>1,canonical=>1});
 
-} elsif($cmd eq 'article' || $cmd eq 'a' || $cmd eq '') {
+} elsif($cmd eq 'article' || $cmd eq 'a' || $cmd eq '' || $cmd eq 'extract' || $cmd eq 'x') {
    @ARGV = ( '' ) unless(@ARGV);
-   foreach (@ARGV) {
+   foreach my $u (@ARGV) {
       if($arg && $arg->{regexp}) {
          foreach my $e (@{$z->index($_)}) {
-            print "== $e\n";
-            print $z->output_article($e);
+            my $fout = $e; $fout =~ s/.+\///;
+            if($cmd eq 'extract' || $cmd eq 'x') {
+               print "== $e -> $fout\n";
+               open(my $fh,">",$fout);
+               print $fh $z->output_article($e);
+               close $fh;
+            } else {
+               print "== $e\n";
+               print $z->output_article($e);
+            }
             print "\n";
          }
       } else {
-         print $z->output_article($_);
+         if($cmd eq 'extract' || $cmd eq 'x') {
+            my $fout = $u; $fout =~ s/.+\///;
+            print "== $u -> $fout\n";
+            open(my $fh,">",$fout);
+            print $fh $z->output_article($u);
+            close $fh;
+         } else {
+            print $z->output_article($u);
+         }
       }
       if($z->error()) {
          print "$APPNAME: ERR: ".$z->error()."\n";
@@ -69,11 +86,16 @@ if($cmd eq 'info' || $cmd eq 'i') {
    }
 
 } elsif($cmd eq 'index' || $cmd eq 'ix' || $cmd eq 'ls') {
+   foreach my $i (@{$z->index()}) {
+      print "$i\n";
+   }
+   
+} elsif($cmd eq 'search' || $cmd eq 's') {
    foreach my $i (@{$z->index(shift(@ARGV))}) {
       print "$i\n";
    }
    
-} elsif($cmd eq 'query' || $cmd eq 'search' || $cmd eq 'q') {
+} elsif($cmd eq 'query' || $cmd eq 'q') {
    my $q = shift(@ARGV);
    my $st = time();
    my $r = $z->fts($q,$arg);
@@ -97,26 +119,31 @@ sub help {
       --index=<ix>      define which xapian index to consider, fts or title (default: fts)
       --regexp          with 'article' or 'a', treat arguments as regular expressions
         -e                       \"                      \"
-      --case_insens     case-insentivity in combination with '-e' only
+      --case_insens     case-insentivity with 'search' or 's' command
         -i                       \"         \"
 
    commands:
-      info            show info of zim file
-         i                \"         \"
-      index [<m>]     list all entries with optional match (use optionally -i)
-         ix               \"         \"
-         ls               \"         \"
-      article [<u>..] arguments are optional as url(s) of the articles (use -e and perhaps -i)
-         a [<u>..]        \"         \"
-      query <q>       query internal xapian indices (fts or title), use --index=title to switch
-         search <q>       \"                  \"
-         q <q>            \"                  \"
+      info              show info of zim file
+         i                  \"         \"
+      index             list all entries
+         ix                 \"         \"
+         ls                 \"         \"
+      search <q>        list all entries with matching query, use optionally -i
+         s <q>              \"                  \"
+      article [<u>..]   output article content, optionally use -e and -i
+         a [<u>..]          \"                  \"
+      extract [<u>..]   extract article content to file, optionally use -e and -i
+         x [<u>..]          \"                  \"
+      query <q>         query internal xapian indices (fts or title), use --index=title to switch
+         q <q>              \"                  \"
       
    examples:
       zim test.zim                  displays default page
       zim test.zim i                display info of zim file
       zim test.zim ix               display entire index of zim file
-      zim test.zim a test           list urls of matching filenames
+      zim test.zim -i s test        list urls of matching filenames
+      zim test.zim a /A/Test        output articles
+      zim test.zim -e -i a test     output articles matching terms case-insensitive
       zim test.zim q test           query fts using internal xapian index (if there are such)
       zim test.zim --index=title q test     query fts but only titles
 
