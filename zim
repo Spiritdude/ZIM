@@ -4,9 +4,10 @@
 #  written by Rene K. Mueller
 #
 my $APPNAME = 'zim';
-my $VERSION = '0.0.1';
+my $VERSION = '0.0.2';
 #
 # History:
+# 2020/03/29: 0.0.2: fts() with 'query' or 'q' supported
 # 2020/03/28: 0.0.1: starting ZIM.pm and zim tool
 
 BEGIN { push @INC,".","$ENV{HOME}/lib/perl5" }
