@@ -124,10 +124,10 @@ sub help {
 
    commands:
       info              show info of zim file
-         i                  \"         \"
+         i                  \"       \"
       index             list all entries
-         ix                 \"         \"
-         ls                 \"         \"
+         ix                 \"       \"
+         ls                 \"       \"
       search <q>        list all entries with matching query, use optionally -i
          s <q>              \"                  \"
       article [<u>..]   output article content, optionally use -e and -i
@@ -142,8 +142,10 @@ sub help {
       zim test.zim i                display info of zim file
       zim test.zim ix               display entire index of zim file
       zim test.zim -i s test        list urls of matching filenames
-      zim test.zim a /A/Test        output articles
+      zim test.zim a /A/Test        output article(s)
       zim test.zim -e -i a test     output articles matching terms case-insensitive
+      zim test.zim x /A/Test        extract article content as file(s)
+      zim test.zim -e x .png        extract article content matching regexp
       zim test.zim q test           query fts using internal xapian index (if there are such)
       zim test.zim --index=title q test     query fts but only titles
 
