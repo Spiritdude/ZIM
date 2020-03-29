@@ -3,7 +3,7 @@ package ZIM;
 # == ZIM.pm ==
 #
 #    based on zimHttpServer.pl written by Pedro González (2012/04/06)
-#    turned into ZIM.pm by Rene K. Mueller
+#    turned into ZIM.pm by Rene K. Mueller (2020/03/28) with enhancements as listed below
 #
 # Description:
 #   provides basic OO interface to ZIM files as provided by kiwix.org
@@ -35,7 +35,7 @@ sub new {
 
    @{$self->{error}} = ();
 
-   open (my $fh, $arg->{file}) || die "file not found <$arg->{file}>\n";
+   open (my $fh, $arg->{file}) || die "ZIM.pm: ERR: file not found <$arg->{file}>\n";
 
    $self->{fh} = $fh;
    # -- read zim header
@@ -388,7 +388,7 @@ sub fts {
          my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, _url => "/".$doc->get_data() };
          $self->output_article($e->{_url},{metadataOnly=>1});
          #foreach my $k (keys %{$self->{article}}) {
-         foreach my $k (qw(url title revision number)) {
+         foreach my $k (qw(url title revision number namespace)) {
             $e->{$k} = $self->{article}->{$k};
          }
          $e->{id} = $e->{number}; delete $e->{number};
@@ -421,9 +421,9 @@ sub server {
    my ($PF_UNIX, $PF_INET, $PF_IMPLINK, $PF_NS) = (1..4) ;
    my ($SOCK_STREAM, $SOCK_DGRAM, $SOCK_RAW, $SOCK_SEQPACKET, $SOCK_RDM) = (1..5) ;
    my ($d1, $d2, $prototype) = getprotobyname ("tcp");
-   socket(SSOCKET, $PF_INET, $SOCK_STREAM, $prototype) || die "socket: $!";
-   bind(SSOCKET, pack("SnCCCCx8", 2, $server_port, split(/\./,$server_ip))) || die "bind: $!";
-   listen(SSOCKET, 5) || die "connect: $!";
+   socket(SSOCKET, $PF_INET, $SOCK_STREAM, $prototype) || die "ZIM.pm: ERR: socket: $!";
+   bind(SSOCKET, pack("SnCCCCx8", 2, $server_port, split(/\./,$server_ip))) || die "ZIM.pm: ERR: bind: $!";
+   listen(SSOCKET, 5) || die "ZIM.pm: ERR: connect: $!";
    
    print "\x1b[34m$0 $$: listen in localhost:8080\c[[33m
 write url «localhost:8080» in your web-browser.
@@ -439,7 +439,7 @@ note: if url no found, then start search with pattern.
    $SIG{CHLD} = 'IGNORE';
    while(1){
    # bucle for parent
-   	my $client_addr = accept(CSOCKET,SSOCKET) || die $!;
+   	my $client_addr = accept(CSOCKET,SSOCKET) || die "ZIM.pm: ERR: $!";
    	last unless fork;
    }
    # only sons are connected
