@@ -187,14 +187,14 @@ foreach my $u ($z->index()) {
 
 print $z->article("/A/Test");
 
-$z->article("/A/Test",{ dest => "Test.html" });
+$z->article("/A/Test", { dest => "Test.html" });
 
 my $r = $z->index("test", { case_insense => 1 });
 foreach my $u (@$r) {
    print "$u\n";
 }
 
-my $rs = $z->fts("test",{ index => 'title' });
+my $rs = $z->fts("test", { index => 'title' });
 foreach my $u (@$rs) {
    print "$u\n";
 }
