@@ -8,7 +8,7 @@ ZIM files are like ZIP or TAR.GZ files, but optimized to access individual files
 ## Current State
 - listing metadata of ZIM file
 - extract data from ZIM file
-- search files in ZIM file by filename or full text search (if fts index is included in ZIM file)
+- search files in ZIM file by filename or full-text search (if fts index is included in ZIM file)
 - basic web-server & RESTful full-text search
  
 ## Todo
@@ -45,7 +45,7 @@ USAGE zim 0.0.4: [<opts>] <zimfile> <cmd> [<arguments>]
       --verbose         increase verbosity
         -v or -vvv         "        "
       --version         print version and exit
-      --index=<ix>      define which xapian index to consider, fts or title (default: fts)
+      --index=<ix>      define which xapian index to consider, fulltext or title (default: fulltext)
       --regexp          treat args as regexp, in combination of 'article', 'extract' commands
         -e                       "                      "
       --case_insens     case-insensitivity, in combination of 'search', and -e with 'article' and 'extract'
@@ -65,7 +65,7 @@ USAGE zim 0.0.4: [<opts>] <zimfile> <cmd> [<arguments>]
          a [<u>..]          "                  "
       extract [<u>..]   extract article content to file, optionally use -e and -i
          x [<u>..]          "                  "
-      query <q>         query internal xapian indices (fts or title), use --index=title to switch
+      query <q>         query internal xapian indices (fulltext or title), use --index=title to switch
          q <q>              "                  "
       server            start web-server serving zim-file content
       
@@ -78,7 +78,7 @@ USAGE zim 0.0.4: [<opts>] <zimfile> <cmd> [<arguments>]
       zim test.zim -e -i a test     output articles matching terms case-insensitive
       zim test.zim x /A/Test        extract article content as file(s)
       zim test.zim -e x '\.png'     extract article content matching regexp
-      zim test.zim q test           query fts using internal xapian index (if there are such)
+      zim test.zim q test           query fulltext using internal xapian index (if there are such)
       zim test.zim --index=title q test     query fts but only titles
       zim test.zim server           start web-server
 
@@ -86,7 +86,7 @@ USAGE zim 0.0.4: [<opts>] <zimfile> <cmd> [<arguments>]
 
 ## Full Text Search
 
-Some ZIM files contain `/X/fts/xapian` and `/X/title/xapian` which are full text indexes in Xapian format, 
+Some ZIM files contain `/X/fulltext/xapian` and `/X/title/xapian` which are full-text indexes in Xapian format, 
 those are extracted once if you use `query` or `q` command first, and may take some time. 
 
 Once they are extracted, querying those full text indexes is fast.
@@ -99,6 +99,14 @@ Once they are extracted, querying those full text indexes is fast.
 ```
 
 By default the results are given as JSON.
+
+**Hint**: You may pre-extract the indexes like this:
+```
+% zim archlinux_en_all_maxi_2020-02.zim x /X/fulltext/xapian --output=archlinux_en_all_maxi_2020-02.fulltext.xapian
+== /X/fulltext/xapian => archlinux_en_all_maxi_2020-02.fulltext.xapian
+% zim archlinux_en_all_maxi_2020-02.zim x /X/title/xapian --output=archlinux_en_all_maxi_2020-02.title.xapian
+== /X/title/xapian => archlinux_en_all_maxi_2020-02.title.xapian
+```
 
 ## Web Server
 

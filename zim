@@ -22,7 +22,7 @@ use Time::HiRes 'time';
 my $arg;
 my %s2f = ( v => 'verbose', e => 'regexp', i => 'case_insens' );
 
-$arg->{index} = 'fts';
+$arg->{index} = 'fulltext';
 $arg->{port} = 8080;
 $arg->{ip} = '0.0.0.0';
 
@@ -87,6 +87,8 @@ if($cmd eq 'info' || $cmd eq 'i') {
       } else {
          if($cmd eq 'extract' || $cmd eq 'x') {
             my $fout = $u; $fout =~ s/.+\///;
+            $fout =~ s/\//_/g;
+            $fout = $arg->{output} if(defined $arg->{output});
             print "== $u -> $fout\n";
             open(my $fh,">",$fout);
             print $fh $z->article($u);
@@ -138,6 +140,7 @@ sub help {
         -e                       \"                      \"
       --case_insens     case-insensitivity, in combination of 'search', and -e with 'article' and 'extract'
         -i                       \"         \"
+      --output=<fname>  define filename in combination with 'extract'
       --port=<p>        set port for server (default: $arg->{port})
       --ip=<ip>         set address to bind server (default: $arg->{ip})
 

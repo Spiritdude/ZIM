@@ -414,18 +414,18 @@ sub fts {
    my $opts = shift;
    my $file;
    
-   $file->{fts} = $self->{file}; $file->{fts} =~ s/zim$/fts.xapian/;
+   $file->{fulltext} = $self->{file}; $file->{fulltext} =~ s/zim$/fulltext.xapian/;
    $file->{title} = $self->{file}; $file->{title} =~ s/zim$/title.xapian/;
 
-   if(!-e $file->{fts}) {
-      print "INF: #$$: extract /X/fulltext/xapian -> $file->{fts}\n";
-      $self->article("/X/fulltext/xapian",{dest=>$file->{fts}}) 
+   if(!-e $file->{fulltext}) {
+      print "INF: #$$: extract /X/fulltext/xapian -> $file->{fulltext}\n";
+      $self->article("/X/fulltext/xapian",{dest=>$file->{fulltext}}) 
    }
    if(!-e $file->{title}) {
       print "INF: #$$: extract /X/title/xapian -> $file->{title}\n";
       $self->article("/X/title/xapian",{dest=>$file->{title}}) 
    }
-   my $file_xapian = $file->{$opts->{index}||'fts'};
+   my $file_xapian = $file->{$opts->{index}||'fulltext'};
    print "INF: #$$: Xapian Index $file_xapian\n" if($self->{verbose}>1);
    if(1) {
       my $db = Search::Xapian::Database->new($file_xapian); 
@@ -565,18 +565,26 @@ sub processRequest {
                my($k,$v) = ($kv=~/(\w+)=(.*)/);
                $in->{$k} = $v;
             }
+            my @r;
             if($self->{catalog}) {
+               foreach my $e (sort keys %{$self->{catalog}}) {
+                  my $me = $self->{catalog}->{$e};
+                  push(@r,map { "/$e/$_" } @{$me->fts($in->{q})});
+               }
+               @r = sort { $b->{rank} <=> $a->{rank} } @r;
+               # -- TODO: apply $in->{offset] && $in->{limit};
             } else {
-               $body = to_json({
-                  hits => $self->fts($in->{q},$in),
-                  server => {
-                     name => "zim web-server $::VERSION ($NAME $VERSION)",
-                     elapsed => time()-$st,
-                     time => time(),
-                     date => scalar localtime()
-                  }
-               },{ pretty => $in->{_pretty}, canonical => 1 });
+               @r = $self->fts($in->{q},$in);
             }
+            $body = to_json({
+               hits => @r,
+               server => {
+                  name => "zim web-server $::VERSION ($NAME $VERSION)",
+                  elapsed => time()-$st,
+                  time => time(),
+                  date => scalar localtime()
+               }
+            },{ pretty => $in->{_pretty}, canonical => 1 });
             $mime = 'application/json';
 
          } else {
@@ -592,7 +600,7 @@ sub processRequest {
                      $body = "unknown catalog entry";
                   }
                } else {                                  # -- provide overview of items in catalog
-                  $body = "<html><head><title>Catalog</title></head><style>html{margin:0;padding:0}body{background:#ddd;font-size:2em;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{width:30%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#eee;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{background:#fff}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}</style><body><div class=catalog>";
+                  $body = "<html><head><title>Catalog</title></head><style>html{margin:0;padding:0}body{background:#ddd;font-size:1.6em;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#eee;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{background:#fff}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.5em;opacity:0.7}</style><body><div class=catalog>";
                   foreach my $e (sort keys %{$self->{catalog}}) {
                      my $me = $self->{catalog}->{$e};
                      $me->entry($me->{header}->{mainPage});
@@ -601,7 +609,7 @@ sub processRequest {
                      my $meta = fnum($me->{header}->{articleCount}) . " articles (".fnum(int($me->{header}->{filesize}/1024/1024))." MiB)<br><div class=id>$e</div>";
                      $body .= "<a href=\"/$e$home\"><span class=entry><img class=icon src=\"/$e/-/favicon\"> $title<div class=meta>$meta</div></span></a>";
                   }
-                  $body .= "</div></body></html>";
+                  $body .= "</div><div class=footer><a href=\"https://github.com/Spiritdude/ZIM\">zim web-server</a> $::VERSION ($NAME $VERSION)</div></body></html>";
                   $mime = 'text/html';
                }
             }
