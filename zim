@@ -46,11 +46,21 @@ if($arg->{version}) {
    print "$APPNAME $VERSION (ZIM $ZIM::VERSION)\n";
    exit 0;
 }
-my $zim = $arg->{file} = shift(@ARGV);
-unless(-e $zim) {
-   help();
-   exit -1;
+
+if($arg->{library}) {
+   my $l = $arg->{library};
+   $arg->{library} = [];         # -- bend it ...
+   @{$arg->{library}} = split(/,/,$l);
+   #@{$arg->{library}} = split(/,/,$arg->{library});     # -- won't work ...
+
+} else {
+   my $zim = $arg->{file} = shift(@ARGV);
+   unless(-e $zim) {
+      help();
+      exit -1;
+   }
 }
+
 my $z = new ZIM($arg);
 my $cmd = shift(@ARGV);
 

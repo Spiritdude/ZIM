@@ -8,6 +8,7 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/03/30: 0.0.6: preliminary support for library (multiple zim) for server()
 # 2020/03/30: 0.0.5: renaming methods: article(url) and articleById(n)
 # 2020/03/30: 0.0.4: further code clean up, REST: enable CORS by default, offset & limit considered
 # 2020/03/29: 0.0.3: server() barely functional
@@ -15,7 +16,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.5';
+our $VERSION = '0.0.6';
 
 use strict;
 use Search::Xapian;
@@ -24,13 +25,13 @@ use Time::HiRes 'time';
 use JSON;
 use IO::Socket;
 use IO::Select;
+use Number::Format 'format_number';
 
 sub new {
    my($class) = shift;
    my $self = { };
    my $arg = shift;
-
-   die "ZIM.pm: ERR: zim file must end with .zim, '$arg->{file}' does not\n" unless($arg->{file}=~/\.zim$/);
+   no strict;
    
    bless($self,$class);
 
@@ -40,6 +41,16 @@ sub new {
 
    @{$self->{error}} = ();
 
+   if($arg->{library}) {                       
+      foreach my $f (@{$arg->{library}}) {
+         my $b = $f; $b =~ s/\.zim$//;
+         print "INF: #$$: library: adding $b ($f)\n" if($self->{verbose});
+         $self->{catalog}->{$b} = new ZIM({file=>$f});
+      }
+      return $self;
+   }
+   
+   die "ZIM.pm: ERR: zim file must end with .zim, '$arg->{file}' does not\n" unless($arg->{file}=~/\.zim$/);
    open (my $fh, $arg->{file}) || die "ZIM.pm: ERR: file not found <$arg->{file}>\n";
 
    $self->{fh} = $fh;
@@ -450,7 +461,7 @@ sub server {
    $self->{port} = $self->{port} || 8080;
    $self->{ip} = $self->{ip} || '0.0.0.0';
 
-   if(1) {     # -- old code
+   if(0) {     # -- old code
       my ($server_ip, $server_port) = ($self->{ip}, $self->{port});
       my ($PF_UNIX, $PF_INET, $PF_IMPLINK, $PF_NS) = (1..4) ;
       my ($SOCK_STREAM, $SOCK_DGRAM, $SOCK_RAW, $SOCK_SEQPACKET, $SOCK_RDM) = (1..5) ;
@@ -469,7 +480,7 @@ sub server {
       }
       $self->processRequest(\*CSOCKET);
 
-   } else {    # -- new code (not yet functional)
+   } else {    # -- new code 
       my $server = IO::Socket::INET->new(
          LocalAddr => $self->{ip},
          LocalPort => $self->{port},
@@ -497,7 +508,9 @@ sub server {
             } else {
                if(fork()==0) {
                   $self->processRequest($rh);
+                  exit;
                }
+               close($rh);
                $rs->remove($rh);
             }
          }
@@ -509,9 +522,18 @@ sub processRequest {
    my $self = shift;
    my $cs = shift;
    
+   my $fh;
+
    # -- we need to reopen zim file as we forked process
-   open(my $fh,"<",$self->{file});
-   $self->{fh} = $fh;
+   if($self->{catalog}) {
+      foreach my $e (sort keys %{$self->{catalog}}) {
+         open(my $fh,"<",$self->{catalog}->{$e}->{file});
+         $self->{catalog}->{$e}->{fh} = $fh;
+      }
+   } else {
+      open($fh,"<",$self->{file});
+      $self->{fh} = $fh;
+   }
 
    while(1) {                # -- keep-alive operation (exit only if we fail to send)
    	my $http_header;
@@ -533,11 +555,8 @@ sub processRequest {
 
    		$url =~ s/%(..)/chr(hex($1))/eg;
 
-         $self->entry($self->{header}->{mainPage}), $url = "/".$self->{article}->{namespace}."/".$self->{article}->{url} if $url eq "/";
+         my(@header,$status,$body,$mime);
 
-         print "INF: #$$: server:   serving $url\n" if($self->{verbose});
-         
-         my($status,$body,$mime);
          $status = 200;
          
          if($url =~ /^\/rest\?(.*)/) {
@@ -547,26 +566,72 @@ sub processRequest {
                my($k,$v) = ($kv=~/(\w+)=(.*)/);
                $in->{$k} = $v;
             }
-            $body = to_json({
-               hits => $self->fts($in->{q},$in),
-               server => {
-                  name => "zim web-server $::VERSION ($NAME $VERSION)",
-                  elapsed => time()-$st,
-                  time => time(),
-                  date => scalar localtime()
-               }
-            },{ pretty => $in->{_pretty}, canonical => 1 });
+            if($self->{catalog}) {
+            } else {
+               $body = to_json({
+                  hits => $self->fts($in->{q},$in),
+                  server => {
+                     name => "zim web-server $::VERSION ($NAME $VERSION)",
+                     elapsed => time()-$st,
+                     time => time(),
+                     date => scalar localtime()
+                  }
+               },{ pretty => $in->{_pretty}, canonical => 1 });
+            }
             $mime = 'application/json';
 
          } else {
+            my $me = $self;                              # -- me might point later to catalog entry itself
+            my($base,$home,$title);
+            if($self->{catalog}) {                       # -- dealing with a catalog, determine which entry
+               if($url =~ s/\/([\w\-]+)\//\//) {
+                  $base = $1;
+                  if($self->{catalog}->{$base}) {
+                     $me = $self->{catalog}->{$base};
+                  } else {
+                     push(@{$self->{error}},"unknown catalog entry '$base'");
+                     $body = "unknown catalog entry";
+                  }
+               } else {                                  # -- provide overview of items in catalog
+                  $body = "<html><head><title>Catalog</title></head><style>html{margin:0;padding:0}body{background:#ddd;font-size:2em;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{width:30%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#eee;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{background:#fff}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}</style><body><div class=catalog>";
+                  foreach my $e (sort keys %{$self->{catalog}}) {
+                     my $me = $self->{catalog}->{$e};
+                     $me->entry($me->{header}->{mainPage});
+                     $home = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
+                     $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
+                     my $meta = format_number($me->{header}->{articleCount}) . " articles (".format_number(int($me->{header}->{filesize}/1024/1024))." MiB)<br><div class=id>$e</div>";
+                     $body .= "<a href=\"/$e$home\"><span class=entry><img class=icon src=\"/$e/-/favicon\"> $title<div class=meta>$meta</div></span></a>";
+                  }
+                  $body .= "</div></body></html>";
+                  $mime = 'text/html';
+               }
+            }
+
+            # -- after this point $me points to current zim file
+
+            # -- homepage requested?
+            if((!$body) && $url eq "/") {
+               $me->entry($me->{header}->{mainPage});
+               $url = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
+               push(@header,"Location: $url");
+               $status = 301;
+               $body = 'redirect';
+            }
+
             $url = "/-/favicon" if $url eq "/favicon.ico";
             # $url =~ s#(/.*?/.*?)$#$1#;
 
-            $url = "/A$url" unless $url =~ "/.*/";       # -- complete url if necessary
+            # $url = "/A$url" unless $body || $url =~ "/.*/";       # -- complete url if necessary
 
-            $body  = $self->article($url);
-            $mime = $self->{article}->{mimetype} >= 0 ? $self->{mime}->[$self->{article}->{mimetype}] : "text/plain";
+            print "INF: #$$: server:   serving ".($base?"$base:":"")."$url\n" if($self->{verbose});
+         
+            $body = $body || $me->article($url);
+            $mime = $mime || ($me->{article}->{mimetype} >= 0 ? $me->{mime}->[$me->{article}->{mimetype}] : "text/plain");
 
+            if(0 && $base && $mime eq 'text/html') {    # -- we need to change tamper the HTML ...
+               $body =~ s#</body>#<div class=zim>#;
+            }
+            
             if($self->error()) {
                $status = 404;
                $body = "<html><head><title>404 file not found</title></head><body><h1>404 file not found</h1>"
@@ -580,13 +645,13 @@ sub processRequest {
          my $sz = length($body);
 
          my $m = join("\r\n",
-            "HTTP/1.1 200 OK",
+            "HTTP/1.1 $status OK",
             "Connection: Keep-Alive",
             "Keep-Alive: timeout=30",
             "Content-Type: $mime",
             "Content-Length: $sz",
             "Access-Control-Allow-Headers: *",     # -- CORS, allow XHR to make requests
-            "",
+            @header ? (@header,"") : "",
             $body);
          send($cs, $m, 0) || last;
 
@@ -604,7 +669,7 @@ sub processRequest {
       }
    }
    shutdown($cs,2);
-   close($fh);
+   close($fh) if($fh);
    exit 0;
 }
 1;

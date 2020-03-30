@@ -6,7 +6,7 @@ all::
 
 requirements::
 	sudo apt -y install libxapian-dev 
-	sudo cpan Search::Xapian JSON Time::HiRes # IO::Uncompress::AnyUncompress
+	sudo cpan Search::Xapian JSON Time::HiRes Number::Format # IO::Uncompress::AnyUncompress
 
 install::
 	mkdir -p ~/lib/perl5
