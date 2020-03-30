@@ -197,5 +197,8 @@ foreach my $u ($z->index("test", { case_insense => 1 })) {
 foreach my $u ($z->fts("test",{ index => 'title' })) {
    print "$u\n";
 }
+
+$z->server({ ip => '127.0.0.1', port => 8088 });
+
 ```
 
