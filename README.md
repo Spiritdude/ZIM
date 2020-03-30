@@ -1,4 +1,4 @@
-# ZIM Toolkit (zim)
+# zim & ZIM.pm: ZIM Perl Toolkit
 `zim` is small command-line tool written in Perl to deal with [ZIM files](https://openzim.org) as invented by Wikimedia CH and [Kiwix.org](https://kiwix.org), off-line version of Wikipedia, Wiktionary, Gutenberg and other datasets.
 
 ZIM files are like ZIP or TAR.GZ files, but optimized to access individual files (.html, .jpg, .png) quickly.
