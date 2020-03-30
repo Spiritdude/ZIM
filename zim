@@ -90,9 +90,7 @@ if($cmd eq 'info' || $cmd eq 'i') {
             $fout =~ s/\//_/g;
             $fout = $arg->{output} if(defined $arg->{output});
             print "== $u -> $fout\n";
-            open(my $fh,">",$fout);
-            print $fh $z->article($u);
-            close $fh;
+            $z->article($u,{ dest=>$fout });
          } else {
             print $z->article($u);
          }
@@ -140,7 +138,7 @@ sub help {
         -e                       \"                      \"
       --case_insens     case-insensitivity, in combination of 'search', and -e with 'article' and 'extract'
         -i                       \"         \"
-      --output=<fname>  define filename in combination with 'extract'
+      --output=<fname>  define output filename in combination with 'extract'
       --port=<p>        set port for server (default: $arg->{port})
       --ip=<ip>         set address to bind server (default: $arg->{ip})
 

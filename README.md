@@ -100,14 +100,6 @@ Once they are extracted, querying those full text indexes is fast.
 
 By default the results are given as JSON.
 
-**Hint**: You may pre-extract the indexes like this:
-```
-% zim archlinux_en_all_maxi_2020-02.zim x /X/fulltext/xapian --output=archlinux_en_all_maxi_2020-02.fulltext.xapian
-== /X/fulltext/xapian => archlinux_en_all_maxi_2020-02.fulltext.xapian
-% zim archlinux_en_all_maxi_2020-02.zim x /X/title/xapian --output=archlinux_en_all_maxi_2020-02.title.xapian
-== /X/title/xapian => archlinux_en_all_maxi_2020-02.title.xapian
-```
-
 ## Web Server
 
 The main intent of ZIM files are to provide an entire web-site for off-line operations, like having Wikipedia fully functional 
@@ -118,6 +110,13 @@ but running on a dedicated web-server.
 ```
 
 and then open the browser of your choice `http://127.0.0.1:8080`
+
+**Hint**: You may pre-extract the xapian indexes by querying it via the command-line first:
+```
+% zim wikipedia_en_all_maxi-2019-08.zim q test
+(takes a while)
+```
+so the first query via the browser won't take too long.
 
 ### RESTful API
 
@@ -201,8 +200,8 @@ foreach my $u (@$r) {
 }
 
 my $rs = $z->fts("test", { index => 'title' });
-foreach my $u (@$rs) {
-   print "$u\n";
+foreach my $e (@$rs) {
+   print to_json($e,{ pretty=>1, canonical => 1 });
 }
 
 $z->server({ ip => '127.0.0.1', port => 8088 });

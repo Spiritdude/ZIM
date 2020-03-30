@@ -8,6 +8,7 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/03/30: 0.0.7: support large article extraction direct to file (without large memory consumption) for wikipedia.zim xapian indices
 # 2020/03/30: 0.0.6: preliminary support for library (multiple zim) for server()
 # 2020/03/30: 0.0.5: renaming methods: article(url) and articleById(n)
 # 2020/03/30: 0.0.4: further code clean up, REST: enable CORS by default, offset & limit considered
@@ -16,7 +17,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.6';
+our $VERSION = '0.0.7';
 
 use strict;
 use Search::Xapian;
@@ -207,33 +208,36 @@ sub cluster_blob {
    # -- compressed?
    if($cluster{"compression_type"} == 4) {
       my $data;
+      
+      # -- FIXIT: do not read large compressed files into memory, but small chunks only to files
       read($fh, $data, $size);
 
       # -- FIXIT: use XZ library without creating tmp file (seems ::Uncompress work only via files, not data direct)
       if(1) {     # -- old code
          # -- extract data separately into a file, uncompress, and extract part of it
-         my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
-         open(DATA, ">$file.xz");
+         my $tmp = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
+         open(DATA, ">$tmp.xz");
          print DATA $data;
          close(DATA);
-   
-         #`xz -d -f $file.xz`;
+         
+         #`xz -d -f $tmp.xz`;
          # -- decompress it
          if(fork()==0) {
-            exec('xz','-d','-f',"$file.xz");
+            exec('xz','-d','-f',"$tmp.xz");
          }
          wait;
-      
-         open(DATA, $file);
+
+         open(DATA, $tmp);
          seek(DATA, $blob*4, 0);
          read(DATA, $_, 4); my $posStart = unpack("I");
          read(DATA, $_, 4); my $posEnd = unpack("I");
          seek(DATA, $posStart, 0);
-         read(DATA, $ret, $posEnd-$posStart);
-         close(DATA);
-    
-         unlink $file;
 
+         read(DATA, $ret, $posEnd-$posStart);         # -- read into memory
+         close(DATA);
+         
+         unlink $tmp;
+         
       } else {    # -- new code
          if(0) {
             my $s = anyuncompress $data => $ret;         # -- throws error (not usable): can't handle data, only files
@@ -275,7 +279,36 @@ sub cluster_blob {
 
    } else {
       my $data;
-      read($fh, $data, $size);
+
+      if(1 && ($size > 200_000_000 || ($opts && $opts->{dest}))) {
+         if($opts && $opts->{dest}) {
+            print "INF: #$$: writing $opts->{dest}\n" if($self->{verbose});
+      
+            my $off = tell $fh;
+            seek($fh, $off+$blob*4, 0);
+            read($fh, $_, 4); my $posStart = unpack("I");
+            read($fh, $_, 4); my $posEnd = unpack("I");
+            seek($fh, $off+$posStart, 0);
+
+            $size = $posEnd-$posStart;
+
+            open(OUT,">",$opts->{dest});
+            my $bs = 4096*1024;                          # -- use 4MB chunks
+            while(1) {
+               my $n = read($fh,$ret,$size >= $bs ? $bs : $size);
+               $size -= $n;
+               print OUT $ret;
+               last if($size <= 0 || $n <= 0);
+            }
+            close OUT;
+            return;
+         } else {
+            print STDERR "ZIM.pm: ERR: file too large (".fnum($size)." bytes) to read into memory, rather extract to a file\n";
+            exit 0;
+         }
+      } else {
+         read($fh, $data, $size);
+      }
       $_ = substr $data, $blob*4, 4; my $posStart = unpack("I");
       $_ = substr $data, $blob*4+4, 4; my $posEnd = unpack("I");
       $ret = substr $data, $posStart, $posEnd-$posStart;
@@ -284,9 +317,8 @@ sub cluster_blob {
          open(my $fhx,">",$opts->{dest});
          print $fhx $ret;
          close $fhx;
-      } else {
-         return $ret;
       }
+      return $ret;
    }
 }
 
@@ -436,10 +468,10 @@ sub fts {
       my @re;
       foreach my $m (@r) {
          my $doc = $m->get_document();
-         my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, _url => "/".$doc->get_data() };
-         $self->article($e->{_url},{metadataOnly=>1});
+         my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, url => "/".$doc->get_data() };
+         $self->article($e->{url},{metadataOnly=>1});
          #foreach my $k (keys %{$self->{article}}) {
-         foreach my $k (qw(url title revision number namespace mimetype)) {
+         foreach my $k (qw(title revision number namespace mimetype)) {
             $e->{$k} = $self->{article}->{$k};
          }
          $e->{id} = $e->{number}; delete $e->{number};
@@ -479,7 +511,7 @@ sub server {
       }
       $self->processRequest(\*CSOCKET);
 
-   } else {    # -- new code 
+   } else {    # -- new code
       my $server = IO::Socket::INET->new(
          LocalAddr => $self->{ip},
          LocalPort => $self->{port},
@@ -567,17 +599,22 @@ sub processRequest {
             }
             my @r;
             if($self->{catalog}) {
-               foreach my $e (sort keys %{$self->{catalog}}) {
-                  my $me = $self->{catalog}->{$e};
-                  push(@r,map { "/$e/$_" } @{$me->fts($in->{q})});
+               if($in->{content}) {
+                  @r = map { $_->{url} = "/$in->{content}$_->{url}"; $_ } @{$self->{catalog}->{$in->{content}}->fts($in->{q},$in)};
+               } else {
+                  foreach my $e (sort keys %{$self->{catalog}}) {
+                     my $me = $self->{catalog}->{$e};
+                     push(@r,map { $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});
+                     #push(@r,@{$me->fts($in->{q})});
+                  }
+                  @r = sort { $b->{score} <=> $a->{score} } @r;
+                  # -- TODO: apply new rank, and consider $in->{offset] && $in->{limit};
                }
-               @r = sort { $b->{rank} <=> $a->{rank} } @r;
-               # -- TODO: apply $in->{offset] && $in->{limit};
             } else {
-               @r = $self->fts($in->{q},$in);
+               @r = @{$self->fts($in->{q},$in)};
             }
             $body = to_json({
-               hits => @r,
+               hits => \@r,
                server => {
                   name => "zim web-server $::VERSION ($NAME $VERSION)",
                   elapsed => time()-$st,
@@ -620,15 +657,15 @@ sub processRequest {
             if((!$body) && $url eq "/") {
                $me->entry($me->{header}->{mainPage});
                $url = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
-               push(@header,"Location: $url");
-               $status = 301;
+               push(@header,"Location: $url");        # -- let's redirect browser, so images and script all work properly
+               $status = 307;
                $body = 'redirect';
             }
 
             $url = "/-/favicon" if $url eq "/favicon.ico";
             # $url =~ s#(/.*?/.*?)$#$1#;
 
-            # $url = "/A$url" unless $body || $url =~ "/.*/";       # -- complete url if necessary
+            # $url = "/A$url" unless $body || $url =~ "/.*/";       # -- complete url if necessary (disabled)
 
             print "INF: #$$: server:   serving ".($base?"$base:":"")."$url\n" if($self->{verbose});
          
