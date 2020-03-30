@@ -195,7 +195,7 @@ sub cluster_blob {
 
    # -- compressed?
    if($cluster{"compression_type"} == 4) {
-   	my $data;
+      my $data;
       read($fh, $data, $size);
 
       # -- FIXIT: use XZ library without creating tmp file (seems ::Uncompress work only via files, not data direct)
