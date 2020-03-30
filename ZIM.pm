@@ -25,7 +25,6 @@ use Time::HiRes 'time';
 use JSON;
 use IO::Socket;
 use IO::Select;
-use Number::Format 'format_number';
 
 sub new {
    my($class) = shift;
@@ -599,7 +598,7 @@ sub processRequest {
                      $me->entry($me->{header}->{mainPage});
                      $home = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
                      $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
-                     my $meta = format_number($me->{header}->{articleCount}) . " articles (".format_number(int($me->{header}->{filesize}/1024/1024))." MiB)<br><div class=id>$e</div>";
+                     my $meta = fnum($me->{header}->{articleCount}) . " articles (".fnum(int($me->{header}->{filesize}/1024/1024))." MiB)<br><div class=id>$e</div>";
                      $body .= "<a href=\"/$e$home\"><span class=entry><img class=icon src=\"/$e/-/favicon\"> $title<div class=meta>$meta</div></span></a>";
                   }
                   $body .= "</div></body></html>";
@@ -671,6 +670,10 @@ sub processRequest {
    shutdown($cs,2);
    close($fh) if($fh);
    exit 0;
+}
+
+sub fnum {
+  return reverse join ',', unpack '(A3)*', reverse $_[0]
 }
 1;
 __END__
