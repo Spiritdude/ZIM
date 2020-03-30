@@ -112,7 +112,7 @@ and then open the browser of your choice `http://127.0.0.1:8080`
 ### RESTful API
 
 The endpoint is `http://127.0.0.1:8080/rest` and takes `GET` request arguments:
-- `q` the query term
+- `q`: the query term
 - `offset`:  define offset of results, default: 0
 - `limit`: limit results, default: 100
 - `_pretty=` `0` or `1` to enable pretty JSON formatting
