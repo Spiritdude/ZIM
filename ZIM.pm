@@ -91,29 +91,29 @@ sub error {
 #    return ARTICLE NUMBER POINTER
 sub url_pointer {
    my $self = shift;
-	my $article = shift;
+   my $article = shift;
    my $fh = $self->{fh};
-	#push(@{$self->{error}},"article number $article exceeds $self->{header}->{articleCount}"), return ''
+   #push(@{$self->{error}},"article number $article exceeds $self->{header}->{articleCount}"), return ''
    return -1 if $article >= $self->{header}->{"articleCount"};
-	my $pos = $self->{header}->{"urlPtrPos"};
-	$pos += $article*8;
-	seek($fh, $pos, 0);
-	read($fh, $_, 8); my $ret = unpack("Q");
-	return $ret;
+   my $pos = $self->{header}->{"urlPtrPos"};
+   $pos += $article*8;
+   seek($fh, $pos, 0);
+   read($fh, $_, 8); my $ret = unpack("Q");
+   return $ret;
 }
 
 # -- read ARTICLE NUMBER (sort by title) into TITLE POINTER LIST
 #    return ARTICLE NUMBER (not pointer)
 sub title_pointer {
    my $self = shift;
-	my $article_by_title = shift;
+   my $article_by_title = shift;
    my $fh = $self->{fh};
    return -1 if $article_by_title >= $self->{header}->{"articleCount"};
-	my $pos = $self->{header}->{"titlePtrPos"};
-	$pos += $article_by_title*4;
-	seek($fh, $pos,0);
-	read($fh, $_, 4); my $ret = unpack("I");
-	return $ret;
+   my $pos = $self->{header}->{"titlePtrPos"};
+   $pos += $article_by_title*4;
+   seek($fh, $pos,0);
+   read($fh, $_, 4); my $ret = unpack("I");
+   return $ret;
 }
 
 # -- read ARTICLE NUMBER 
@@ -124,39 +124,39 @@ sub entry {
    # article entry
    # redirect entry
    my $self = shift;
-	my $article = shift;
+   my $article = shift;
 
    my $fh = $self->{fh};
-	$self->{article} = undef;
-	$self->{article}->{number} = $article;
+   $self->{article} = undef;
+   $self->{article}->{number} = $article;
 
-	my $pos = $self->url_pointer($article);
+   my $pos = $self->url_pointer($article);
    return $pos if($pos<0);
-	seek($fh, $pos,0);
-	read($fh, $_, 2); $self->{article}->{"mimetype"} = unpack("s");
-	read($fh, $_, 1); $self->{article}->{"parameter_len"} = unpack("H*");
-	read($fh, $_, 1); $self->{article}->{"namespace"} = unpack("a");
-	read($fh, $_, 4); $self->{article}->{"revision"} = unpack("I");
-	if($self->{article}->{"mimetype"} < 0){
-		read($fh, $_, 4); $self->{article}->{"redirect_index"} = unpack("I");
-	} else {
-		read($fh, $_, 4); $self->{article}->{"cluster_number"} = unpack("I");
-		read($fh, $_, 4); $self->{article}->{"blob_number"} = unpack("I");
-	}
-	$/ = "\x00";
-	$self->{article}->{"url"} = <$fh>;
-	$self->{article}->{"title"} = <$fh>;
-	chop($self->{article}->{"url"});
-	chop($self->{article}->{"title"});
-	$/ = "\n";
-	read($fh, $_, $self->{article}->{"parameter_len"}); $self->{article}->{"parameter"} = unpack("H*");
+   seek($fh, $pos,0);
+   read($fh, $_, 2); $self->{article}->{"mimetype"} = unpack("s");
+   read($fh, $_, 1); $self->{article}->{"parameter_len"} = unpack("H*");
+   read($fh, $_, 1); $self->{article}->{"namespace"} = unpack("a");
+   read($fh, $_, 4); $self->{article}->{"revision"} = unpack("I");
+   if($self->{article}->{"mimetype"} < 0){
+      read($fh, $_, 4); $self->{article}->{"redirect_index"} = unpack("I");
+   } else {
+      read($fh, $_, 4); $self->{article}->{"cluster_number"} = unpack("I");
+      read($fh, $_, 4); $self->{article}->{"blob_number"} = unpack("I");
+   }
+   $/ = "\x00";
+   $self->{article}->{"url"} = <$fh>;
+   $self->{article}->{"title"} = <$fh>;
+   chop($self->{article}->{"url"});
+   chop($self->{article}->{"title"});
+   $/ = "\n";
+   read($fh, $_, $self->{article}->{"parameter_len"}); $self->{article}->{"parameter"} = unpack("H*");
 }
 
 # -- read CLUSTER NUMBER into CLUSTER POINTER LIST 
 #    return CLUSTER NUMBER POINTER
 sub cluster_pointer {
    my $self = shift;
-	my $cluster = shift;
+   my $cluster = shift;
    my $fh = $self->{fh};
    if($cluster >= $self->{header}->{"clusterCount"}) {
    	return $self->{header}->{"checksumPos"} 
@@ -164,11 +164,11 @@ sub cluster_pointer {
       #die "ZIM.pm: cluster #$cluster exceeds maximum of $self->{header}->{clusterCount}\n";
       #return 0;
    }
-	my $pos = $self->{header}->{"clusterPtrPos"};
-	$pos += $cluster*8;
-	seek($fh, $pos,0);
-	read($fh, $_, 8); my $ret = unpack("Q");
-	return $ret;
+   my $pos = $self->{header}->{"clusterPtrPos"};
+   $pos += $cluster*8;
+   seek($fh, $pos,0);
+   read($fh, $_, 8); my $ret = unpack("Q");
+   return $ret;
 }
 
 # -- read CLUSTER NUMBER
@@ -176,16 +176,16 @@ sub cluster_pointer {
 #    read BLOB NUMBER 
 sub cluster_blob {
    my $self = shift;
-	my $cluster = shift;
-	my $blob = shift;
+   my $cluster = shift;
+   my $blob = shift;
    my $opts = shift;
    my $fh = $self->{fh};
-	my $ret;
+   my $ret;
 
    print "INF: #$$: cluster blob (cluster=$cluster)\n" if($self->{verbose}>2);
 
-	my $pos = $self->cluster_pointer($cluster);
-	my $size = $self->cluster_pointer($cluster+1) - $pos - 1;
+   my $pos = $self->cluster_pointer($cluster);
+   my $size = $self->cluster_pointer($cluster+1) - $pos - 1;
    
    print "INF: #$$: cluster blob (cluster=$cluster, pos=$pos, size=$size)\n" if($self->{verbose}>2);
    
@@ -195,8 +195,8 @@ sub cluster_blob {
 
    # -- compressed?
    if($cluster{"compression_type"} == 4) {
-		my $data;
-		read($fh, $data, $size);
+   	my $data;
+      read($fh, $data, $size);
 
       # -- FIXIT: use XZ library without creating tmp file (seems ::Uncompress work only via files, not data direct)
       if(1) {     # -- old code
@@ -262,7 +262,7 @@ sub cluster_blob {
    		return $ret;
       }
 
-	} else {
+   } else {
       my $data;
       read($fh, $data, $size);
       $_ = substr $data, $blob*4, 4; my $posStart = unpack("I");
@@ -283,69 +283,69 @@ sub cluster_blob {
 #    return DATA
 sub output_articleNumber {
    my $self = shift;
-	my $articleNumber = shift;
+   my $articleNumber = shift;
    my $opts = shift;
    print "INF: #$$: output_articleNumber: #$articleNumber\n" if($self->{verbose}>1);
-	while(1) {
-		my $p = $self->entry($articleNumber);
+   while(1) {
+      my $p = $self->entry($articleNumber);
       #print to_json($self->{article},{pretty=>1,canonical=>1});
       push(@{$self->{error}},"article not found #$articleNumber"), return '' if($p<0);
-		if(defined $self->{article}->{"redirect_index"}) {
-			$articleNumber = $self->{article}->{"redirect_index"};
-		} else {
+      if(defined $self->{article}->{"redirect_index"}) {
+         $articleNumber = $self->{article}->{"redirect_index"};
+      } else {
          return $opts && $opts->{metadataOnly} ? 
             $self->{article} : 
             $self->cluster_blob($self->{article}->{"cluster_number"}, $self->{article}->{"blob_number"}, $opts);
-			last;
-		}
-	}
+         last;
+      }
+   }
 }
 
 # -- search url 
 #    return DATA
 sub output_article {
    my $self = shift;
-	my $url = shift;
+   my $url = shift;
    my $opts = shift;
-	my $max = $self->{header}->{"articleCount"};
-	my $min = 0;
-	my $an;
+   my $max = $self->{header}->{"articleCount"};
+   my $min = 0;
+   my $an;
 
    if(!$url) {    # -- no url provided, then display mainPage
       return $self->output_articleNumber($self->{header}->{mainPage},$opts);
    }
-	while(1) {     # -- simple binary search
-		$an = int(($max+$min)/2);
-		my $p = $self->entry($an,$opts);
+   while(1) {     # -- simple binary search
+      $an = int(($max+$min)/2);
+      my $p = $self->entry($an,$opts);
       push(@{$self->{error}},"article <$url> not found"), return '' if($p<0);
-		if("/$self->{article}->{namespace}/$self->{article}->{url}" gt "$url") {
-			$max = $an-1;
-		} elsif("/$self->{article}->{namespace}/$self->{article}->{url}" lt "$url") {
-			$min = $an+1;
-		} else {
-			last;
-		}
+      if("/$self->{article}->{namespace}/$self->{article}->{url}" gt "$url") {
+         $max = $an-1;
+      } elsif("/$self->{article}->{namespace}/$self->{article}->{url}" lt "$url") {
+         $min = $an+1;
+      } else {
+         last;
+      }
       # -- binary search (above) failed: we need to create an index, and fetch the title to compare
-		if(0 && $max < $min){
-			$self->{article} = undef;
-			$self->{article}->{url} = "pattern=$url";
-			$self->{article}->{namespace} = "SEARCH";
-			return "", unless $url =~ /^\/A/;
+   	if(0 && $max < $min){
+         $self->{article} = undef;
+         $self->{article}->{url} = "pattern=$url";
+         $self->{article}->{namespace} = "SEARCH";
+         return "", unless $url =~ /^\/A/;
          # ($url) = grep {length($_)>1} split(/[\/\.\s]/, $url);
-			$url =~ s#/A/##;
+         $url =~ s#/A/##;
          my $m;
          foreach my $f ($self->index($url)) {
             print "INF: #$$: > $_" if($self->{verbose});
             $m .= "<a href=\"$_\">$_</a><br/>\n";
-			}
-			$self->{article}->{mimetype} = 0; # need for Content-Type: text/html; charset=utf-8
-			return $m;
-		}
+         }
+         $self->{article}->{mimetype} = 0; # need for Content-Type: text/html; charset=utf-8
+         return $m;
+      }
       if($max < $min) {
          push(@{$self->{error}},"'$url' not found");
          return '';
       }
-	}
+   }
 	return $self->output_articleNumber($an,$opts);
 }
 
