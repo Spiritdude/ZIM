@@ -201,12 +201,12 @@ sub cluster_blob {
       # -- FIXIT: use XZ library without creating tmp file (seems ::Uncompress work only via files, not data direct)
       if(1) {     # -- old code
          # -- extract data separately into a file, uncompress, and extract part of it
-   		my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
-   		open(DATA, ">$file.xz");
-   		print DATA $data;
-   		close(DATA);
+         my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
+         ppen(DATA, ">$file.xz");
+         print DATA $data;
+         close(DATA);
    
-   		#`xz -d -f $file.xz`;
+         #`xz -d -f $file.xz`;
          # -- decompress it
          if(fork()==0) {
             exec('xz','-d','-f',"$file.xz");
