@@ -729,6 +729,8 @@ __END__
 
 =pod
 
+*** OUTDATED DOCUMENTATION only applies to previous zimHttpServer.pl (no longer valid for ZIM.pm) ***
+
 =head1 NAME
 
 =head1 SYNOPSIS
