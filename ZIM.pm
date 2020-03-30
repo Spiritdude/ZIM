@@ -202,7 +202,7 @@ sub cluster_blob {
       if(1) {     # -- old code
          # -- extract data separately into a file, uncompress, and extract part of it
          my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
-         ppen(DATA, ">$file.xz");
+         open(DATA, ">$file.xz");
          print DATA $data;
          close(DATA);
    
