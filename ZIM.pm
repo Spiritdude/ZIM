@@ -259,7 +259,7 @@ sub cluster_blob {
          print $fhx $ret;
          close $fhx;
       } else {
-   		return $ret;
+         return $ret;
       }
 
    } else {
@@ -274,7 +274,7 @@ sub cluster_blob {
          print $fhx $ret;
          close $fhx;
       } else {
-   		return $ret;
+         return $ret;
       }
    }
 }
