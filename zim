@@ -51,7 +51,7 @@ unless(-e $zim) {
    help();
    exit -1;
 }
-my $z = ZIM->new($arg);
+my $z = new ZIM($arg);
 my $cmd = shift(@ARGV);
 
 if($cmd eq 'info' || $cmd eq 'i') {
