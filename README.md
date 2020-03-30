@@ -189,11 +189,13 @@ print $z->article("/A/Test");
 
 $z->article("/A/Test",{ dest => "Test.html" });
 
-foreach my $u (@{$z->index("test", { case_insense => 1 })}) {
+my $r = $z->index("test", { case_insense => 1 });
+foreach my $u (@$r) {
    print "$u\n";
 }
 
-foreach my $u (@{$z->fts("test",{ index => 'title' })}) {
+my $rs = $z->fts("test",{ index => 'title' });
+foreach my $u (@$rs) {
    print "$u\n";
 }
 
