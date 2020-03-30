@@ -604,11 +604,12 @@ sub processRequest {
                } else {
                   foreach my $e (sort keys %{$self->{catalog}}) {
                      my $me = $self->{catalog}->{$e};
-                     push(@r,map { $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});
-                     #push(@r,@{$me->fts($in->{q})});
+                     push(@r,map { $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});  # -- rebase
                   }
-                  @r = sort { $b->{score} <=> $a->{score} } @r;
-                  # -- TODO: apply new rank, and consider $in->{offset] && $in->{limit};
+                  @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
+                  my $r = 0;
+                  @r = map { $_->{rank} = $r++; $_ } @r;             # -- rerank
+                  @r = splice(@r,$in->{offset},$in->{limit}) if($in->{offset}||$in->{limit});      # -- apply limit & offset
                }
             } else {
                @r = @{$self->fts($in->{q},$in)};
@@ -672,8 +673,8 @@ sub processRequest {
             $body = $body || $me->article($url);
             $mime = $mime || ($me->{article}->{mimetype} >= 0 ? $me->{mime}->[$me->{article}->{mimetype}] : "text/plain");
 
-            if(0 && $base && $mime eq 'text/html') {    # -- we need to change tamper the HTML ...
-               $body =~ s#</body>#<div class=zim>#;
+            if(0 && $base && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
+               $body =~ s#</body>#<div class=zim></div></body>#;
             }
             
             if($self->error()) {
