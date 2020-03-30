@@ -1,5 +1,5 @@
 # ZIM Toolkit (zim)
-`zim` is small command-line tool to deal with [[openzim.org|ZIM files]] as invented by Wikimedia CH and [[kiwix.org|Kiwix.org]], off-line version of Wikipedia, Wiktionary, Gutenberg and other datasets.
+`zim` is small command-line tool to deal with [ZIM files](https://openzim.org) as invented by Wikimedia CH and [Kiwix.org], off-line version of Wikipedia, Wiktionary, Gutenberg and other datasets.
 
 ZIM files are like ZIP or TAR.GZ files, but optimized to access individual files (.html, .jpg, .png) quickly.
 
