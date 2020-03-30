@@ -184,6 +184,9 @@ returns something like this:
 **Note: due the experimental nature the API might change until VERSION 0.1.0 is reached.**
 
 ```
+use ZIM;
+use JSON;   # -- just for to_json() below
+
 my $z = new ZIM({ file => "test.zim" });
 
 foreach my $u (@{$z->index()}) {
@@ -201,7 +204,7 @@ foreach my $u (@$r) {
 
 my $rs = $z->fts("test", { index => 'title' });
 foreach my $e (@$rs) {
-   print to_json($e,{ pretty=>1, canonical => 1 });
+   print to_json($e, { pretty => 1, canonical => 1 });
 }
 
 $z->server({ ip => '127.0.0.1', port => 8088 });
