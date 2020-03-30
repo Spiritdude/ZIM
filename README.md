@@ -3,7 +3,7 @@
 
 ZIM files are like ZIP or TAR.GZ files, but optimized to access individual files (.html, .jpg, .png) quickly.
 
-**NOT#: The package is highly experimental and barely works, and API and notions are subject of changes.**
+**NOTE: The package is highly experimental and barely works, and API and notions are subject of changes.**
 
 ## Current State
 - listing metadata of ZIM file
