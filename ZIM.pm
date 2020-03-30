@@ -171,7 +171,7 @@ sub cluster_pointer {
    my $cluster = shift;
    my $fh = $self->{fh};
    if($cluster >= $self->{header}->{"clusterCount"}) {
-   	return $self->{header}->{"checksumPos"} 
+      return $self->{header}->{"checksumPos"} 
       #push(@{$self->{error}},"cluster_pointer: #$cluster exceeds maximum of $self->{header}->{clusterCount}");
       #die "ZIM.pm: cluster #$cluster exceeds maximum of $self->{header}->{clusterCount}\n";
       #return 0;
@@ -247,10 +247,10 @@ sub cluster_blob {
             $ret = substr($ret,$posStart,$posEnd-$posStart);
 
          } else {       # -- still cumbersome, and additionally won't work (yet)
-      		my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
-      		open(my $fhz,">","$file.xz");
-      		print $fhz $data;
-      		close($fhz);
+            my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
+            open(my $fhz,">","$file.xz");
+            print $fhz $data;
+            close($fhz);
             my $z = new IO::Uncompress::AnyUncompress("$file.xz");         # -- must be a file, can't handle data itself
             if($z) {
                seek($z, $blob*4, 0);
