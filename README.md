@@ -111,7 +111,7 @@ but running on a dedicated web-server.
 
 and then open the browser of your choice `http://127.0.0.1:8080`
 
-**Note:** if you exist the web-server (e.g. CTRL-C) restarting the web-server may fail for 1min as child processes may still hold on the socket; will be fixed in the future.
+**Note:** if you exit the web-server (e.g. CTRL-C) restarting the web-server may fail for 1min as child processes may still hold on the socket; will be fixed in the future.
 
 ### RESTful API
 
