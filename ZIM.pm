@@ -399,14 +399,14 @@ sub make_index {
    my $file = $self->{file};
    $file =~ s/zim$/index/;
    unless(-e $file) {
-   	$| = 1;
+      $| = 1;
       print "INF: #$$: writing $file (index)\n" if($self->{verbose});
       open(INDEX, ">$file");
-   	for(my $n = 0; $n<$self->{header}->{"articleCount"}; $n++) {
-   		$self->entry($n);
-   		print INDEX "/$self->{article}->{namespace}/$self->{article}->{url}\n";
-   		print "\r$n" if($self->{verbose} && ($n%100) == 0);
-   	}
+      for(my $n = 0; $n<$self->{header}->{"articleCount"}; $n++) {
+         $self->entry($n);
+         print INDEX "/$self->{article}->{namespace}/$self->{article}->{url}\n";
+         print "\r$n" if($self->{verbose} && ($n%100) == 0);
+      }
    	print "\n" if($self->{verbose});
    	$| = 0;
    	close(INDEX);
