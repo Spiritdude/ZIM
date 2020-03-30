@@ -199,6 +199,5 @@ foreach my $u ($z->fts("test",{ index => 'title' })) {
 }
 
 $z->server({ ip => '127.0.0.1', port => 8088 });
-
 ```
 
