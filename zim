@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # == zim CLI (Command Line Interface)
-#  written by Rene K. Mueller
+#  written by Rene K. Mueller https://github.com/Spiritdude
 #
 our $APPNAME = 'zim';
 our $VERSION = '0.0.4';
