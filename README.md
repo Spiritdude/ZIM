@@ -92,7 +92,10 @@ those are extracted once if you use `query` or `q` command first, and may take s
 Once they are extracted, querying those full text indexes is fast.
 
 ```
-% zim wikipedia_en_all_maxi-2018-10.zim q test
+% zim archlinux_en_all_maxi_2020-02.zim --index=title q x11
+{"_id":7730,"_url":"/A/X11","id":9836,"mimetype":"text/html","namespace":"A","rank":1,"revision":0,"score":1,"title":"","url":"Xorg"}
+{"_id":4991,"_url":"/A/X11_forwarding","id":6807,"mimetype":"text/html","namespace":"A","rank":2,"revision":0,"score":0.93,"title":"","url":"OpenSSH"}
+{"_id":7916,"_url":"/A/X11_(Português)","id":9850,"mimetype":"text/html","namespace":"A","rank":3,"revision":0,"score":0.93,"title":"Xorg (Português)","url":"Xorg_(Português)"}
 ```
 
 By default the results are given as JSON.
