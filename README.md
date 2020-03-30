@@ -178,7 +178,6 @@ returns something like this:
 
 **Note: due the experimental nature the API might change until VERSION 0.1.0 is reached.**
 
-Some brief overview of `ZIM.pm`:
 ```
 my $z = new ZIM({ file => "test.zim" });
 
