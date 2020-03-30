@@ -24,8 +24,9 @@ edit::
 	dee4 zim ZIM.pm Makefile README.md
 
 git::
-	git remote add origin git@github.com:${NAME}
-	git remote set-url origin git@github.com:${NAME}
+	#git remote add origin git@git:${NAME}
+	#git remote add origin git@github.com:Spiritdude/${NAME}.git
+	git remote set-url origin git@github.com:Spiritdude/${NAME}.git
         
 change::
 	git commit -am "..."
