@@ -4,9 +4,10 @@
 #  written by Rene K. Mueller https://github.com/Spiritdude
 #
 our $APPNAME = 'zim';
-our $VERSION = '0.0.4';
+our $VERSION = '0.0.5';
 #
 # History:
+# 2020/03/30: 0.0.5: --output=<fname> added, early support for --library=<zim1>,<zim2>,...
 # 2020/03/29: 0.0.4: 'server' enabled, very experimental web-server functionality
 # 2020/03/29: 0.0.3: 'extract' or 'x' to extract files
 # 2020/03/29: 0.0.2: fts() with 'query' or 'q' supported
