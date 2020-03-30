@@ -173,3 +173,29 @@ returns something like this:
    }
 }
 ```
+
+## ZIM.pm
+
+**Note: due the experimental nature the API might change until VERSION 0.1.0 is reached.**
+
+Some brief overview of `ZIM.pm`:
+```
+my $z = new ZIM({ file => "test.zim" });
+
+foreach my $u ($z->index()) {
+   print "$u\n";
+}
+
+print $z->article("/A/Test");
+
+$z->article("/A/Test",{ dest => "Test.html" });
+
+foreach my $u ($z->index("test", { case_insense => 1 })) {
+   print "$u\n";
+}
+
+foreach my $u ($z->fts("test",{ index => 'title' })) {
+   print "$u\n";
+}
+```
+
