@@ -181,7 +181,7 @@ returns something like this:
 ```
 my $z = new ZIM({ file => "test.zim" });
 
-foreach my $u ($z->index()) {
+foreach my $u (@{$z->index()}) {
    print "$u\n";
 }
 
