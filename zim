@@ -66,11 +66,11 @@ if($cmd eq 'info' || $cmd eq 'i') {
             if($cmd eq 'extract' || $cmd eq 'x') {
                print "== $e -> $fout\n";
                open(my $fh,">",$fout);
-               print $fh $z->output_article($e);
+               print $fh $z->article($e);
                close $fh;
             } else {
                print "== $e\n";
-               print $z->output_article($e);
+               print $z->article($e);
                print "\n";
             }
          }
@@ -79,10 +79,10 @@ if($cmd eq 'info' || $cmd eq 'i') {
             my $fout = $u; $fout =~ s/.+\///;
             print "== $u -> $fout\n";
             open(my $fh,">",$fout);
-            print $fh $z->output_article($u);
+            print $fh $z->article($u);
             close $fh;
          } else {
-            print $z->output_article($u);
+            print $z->article($u);
          }
       }
       if($z->error()) {

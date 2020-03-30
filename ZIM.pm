@@ -8,13 +8,14 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/03/30: 0.0.5: renaming methods: article(url) and articleById(n)
 # 2020/03/30: 0.0.4: further code clean up, REST: enable CORS by default, offset & limit considered
 # 2020/03/29: 0.0.3: server() barely functional
 # 2020/03/29: 0.0.2: fts() with kiwix full text xapian-based indexes (fts and title) support
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.4';
+our $VERSION = '0.0.5';
 
 use strict;
 use Search::Xapian;
@@ -281,11 +282,11 @@ sub cluster_blob {
 
 # -- read ARTICLE NUMBER
 #    return DATA
-sub output_articleNumber {
+sub articleById {
    my $self = shift;
    my $articleNumber = shift;
    my $opts = shift;
-   print "INF: #$$: output_articleNumber: #$articleNumber\n" if($self->{verbose}>1);
+   print "INF: #$$: articleById: #$articleNumber\n" if($self->{verbose}>1);
    while(1) {
       my $p = $self->entry($articleNumber);
       #print to_json($self->{article},{pretty=>1,canonical=>1});
@@ -303,7 +304,7 @@ sub output_articleNumber {
 
 # -- search url 
 #    return DATA
-sub output_article {
+sub article {
    my $self = shift;
    my $url = shift;
    my $opts = shift;
@@ -312,7 +313,7 @@ sub output_article {
    my $an;
 
    if(!$url) {    # -- no url provided, then display mainPage
-      return $self->output_articleNumber($self->{header}->{mainPage},$opts);
+      return $self->articleById($self->{header}->{mainPage},$opts);
    }
    while(1) {     # -- simple binary search
       $an = int(($max+$min)/2);
@@ -346,7 +347,7 @@ sub output_article {
          return '';
       }
    }
-	return $self->output_articleNumber($an,$opts);
+	return $self->articleById($an,$opts);
 }
 
 sub make_index {
@@ -408,11 +409,11 @@ sub fts {
 
    if(!-e $file->{fts}) {
       print "INF: #$$: extract /X/fulltext/xapian -> $file->{fts}\n";
-      $self->output_article("/X/fulltext/xapian",{dest=>$file->{fts}}) 
+      $self->article("/X/fulltext/xapian",{dest=>$file->{fts}}) 
    }
    if(!-e $file->{title}) {
       print "INF: #$$: extract /X/title/xapian -> $file->{title}\n";
-      $self->output_article("/X/title/xapian",{dest=>$file->{title}}) 
+      $self->article("/X/title/xapian",{dest=>$file->{title}}) 
    }
    my $file_xapian = $file->{$opts->{index}||'fts'};
    print "INF: #$$: Xapian Index $file_xapian\n" if($self->{verbose}>1);
@@ -426,7 +427,7 @@ sub fts {
       foreach my $m (@r) {
          my $doc = $m->get_document();
          my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, _url => "/".$doc->get_data() };
-         $self->output_article($e->{_url},{metadataOnly=>1});
+         $self->article($e->{_url},{metadataOnly=>1});
          #foreach my $k (keys %{$self->{article}}) {
          foreach my $k (qw(url title revision number namespace mimetype)) {
             $e->{$k} = $self->{article}->{$k};
@@ -438,7 +439,7 @@ sub fts {
       }
       return \@re;
    }
-   #if(!-e $file_tt && $self->output_article("/X/title/xapian",{dest=>$file_title})) {
+   #if(!-e $file_tt && $self->article("/X/title/xapian",{dest=>$file_title})) {
    #} 
 }
 
@@ -563,7 +564,7 @@ sub processRequest {
 
             $url = "/A$url" unless $url =~ "/.*/";       # -- complete url if necessary
 
-            $body  = $self->output_article($url);
+            $body  = $self->article($url);
             $mime = $self->{article}->{mimetype} >= 0 ? $self->{mime}->[$self->{article}->{mimetype}] : "text/plain";
 
             if($self->error()) {
@@ -625,7 +626,7 @@ __END__
 
 	cluster_blob
 
-	output_articleNumber
+	articleById
 
 	output_article
 
@@ -688,9 +689,9 @@ socket connect at localhost:8080
 
 	L<cluster_blob>
 
-=item output_articleNumber
+=item articleById
 
-	L<output_articleNumber>
+	L<articleById>
 
 =item output_article
 
@@ -759,11 +760,11 @@ socket connect at localhost:8080
 
 	return data
 
-=head2 output_articleNumber(article_number)
+=head2 articleById(article_number)
 
 	return data
 
-=head2 output_article(url)
+=head2 article(url)
 
 	search the url and return data,
 	or search pattern into file.index and return list of item;
@@ -772,24 +773,24 @@ socket connect at localhost:8080
 	main subrutine of subrutines
 
 	example:
-output_article("/A/wikipedia.html");
+article("/A/wikipedia.html");
 
 	search "/A/wikipedia.html" into file.zim
 	return page
 	the web browser need other files as file.css file.js image.png
-output_article("/I/favicon");
+article("/I/favicon");
 
-output_article("/A/Jordan");
+article("/A/Jordan");
 	no found page named /A/Jordan.
 	This url start with "/A/" and it start to search.
 	It create file.index and search into .zim file,
 	which pattern is "Jordan",
 	and return list of url which are found with pattern.
 
-output_article("Jordan");
+article("Jordan");
 	no found and return null string.
 
-output_article("/I/Jordan");
+article("/I/Jordan");
 	no found and return null string.
 
 =head2 debug
