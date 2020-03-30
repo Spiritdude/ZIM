@@ -17,7 +17,7 @@ ZIM files are like ZIP or TAR.GZ files, but optimized to access individual files
   - adding, removing ZIM files (e.g. adapting `kiwix-tools` XML format)
   - multiple ZIM files but one web-server
 - clean up code (remove old code):
-  - make web-server use better socket handling (exiting web-server and restart make take 1min wait until socket is released)
+  - make web-server use better socket handling
   - `ZIM.pm` proper documentation for CPAN release
 
 ## Download
@@ -110,8 +110,6 @@ but running on a dedicated web-server.
 ```
 
 and then open the browser of your choice `http://127.0.0.1:8080`
-
-**Note:** if you exit the web-server (e.g. CTRL-C) restarting the web-server may fail for 1min as child processes may still hold on the socket; will be fixed in the future.
 
 ### RESTful API
 
