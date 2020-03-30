@@ -85,7 +85,7 @@ USAGE zim 0.0.4: [<opts>] <zimfile> <cmd> [<arguments>]
 
 ## Full Text Search
 
-Some ZIM files contain '/X/fts/xapian' and '/X/title/xapian' which are full text indexes in Xapian format, 
+Some ZIM files contain `/X/fts/xapian` and `/X/title/xapian` which are full text indexes in Xapian format, 
 those are extracted once if you use `query` or `q` command first, and may take some time. 
 
 Once they are extracted, querying those full text indexes is fast.
@@ -106,6 +106,8 @@ but running on a dedicated web-server.
 ```
 
 and then open the browser of your choice `http://127.0.0.1:8080`
+
+**Note:** if you exist the web-server (e.g. CTRL-C) restarting the web-server may fail for 1min as child processes may still hold on the socket; will be fixed in the future.
 
 ### RESTful API
 
