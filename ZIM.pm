@@ -389,7 +389,7 @@ sub article {
          return '';
       }
    }
-	return $self->articleById($an,$opts);
+   return $self->articleById($an,$opts);
 }
 
 sub make_index {
