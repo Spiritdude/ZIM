@@ -8,17 +8,21 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/03/30: 0.0.4: further code clean up, REST: enable CORS by default, offset & limit considered
 # 2020/03/29: 0.0.3: server() barely functional
 # 2020/03/29: 0.0.2: fts() with kiwix full text xapian-based indexes (fts and title) support
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.3';
+our $VERSION = '0.0.4';
 
 use strict;
 use Search::Xapian;
 use Time::HiRes 'time';
+# use IO::Uncompress::AnyUncompress qw(anyuncompress $AnyUncompressError); 
 use JSON;
+use IO::Socket;
+use IO::Select;
 
 sub new {
    my($class) = shift;
@@ -65,7 +69,7 @@ sub new {
    for(my $a=0; 1; $a++){
    	my $b = <$fh>;
    	chop($b);
-   	last, if($b eq "");
+   	last if($b eq "");
    	$mime[$a] = $b;
    }
    $self->{mime} = \@mime;
@@ -185,39 +189,70 @@ sub cluster_blob {
    
    print "INF: #$$: cluster blob (cluster=$cluster, pos=$pos, size=$size)\n" if($self->{verbose}>2);
    
-	seek($fh, $pos, 0);
-	my %cluster;
-	read($fh, $_, 1); $cluster{"compression_type"} = unpack("C");
+   seek($fh, $pos, 0);
+   my %cluster;
+   read($fh, $_, 1); $cluster{"compression_type"} = unpack("C");
 
-	# -- compressed?
-	if($cluster{"compression_type"} == 4) {
+   # -- compressed?
+   if($cluster{"compression_type"} == 4) {
 		my $data;
 		read($fh, $data, $size);
-		my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
 
-      # -- FIXIT: use XZ library without creating tmp file -- OR -- keep it as extracted file could be huge and exceed memory
+      # -- FIXIT: use XZ library without creating tmp file (seems ::Uncompress work only via files, not data direct)
+      if(1) {     # -- old code
+         # -- extract data separately into a file, uncompress, and extract part of it
+   		my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
+   		open(DATA, ">$file.xz");
+   		print DATA $data;
+   		close(DATA);
+   
+   		#`xz -d -f $file.xz`;
+         # -- decompress it
+         if(fork()==0) {
+            exec('xz','-d','-f',"$file.xz");
+         }
+         wait;
       
-      # -- extract data separately
-		open(DATA, ">$file.xz");
-		print DATA $data;
-		close(DATA);
+         open(DATA, $file);
+         seek(DATA, $blob*4, 0);
+         read(DATA, $_, 4); my $posStart = unpack("I");
+         read(DATA, $_, 4); my $posEnd = unpack("I");
+         seek(DATA, $posStart, 0);
+         read(DATA, $ret, $posEnd-$posStart);
+         close(DATA);
+    
+         unlink $file;
 
-		#`xz -d -f $file.xz`;
-      # -- decompress it
-      if(fork()==0) {
-         exec('xz','-d','-f',"$file.xz");
+      } else {    # -- new code
+         if(0) {
+            my $s = anyuncompress $data => $ret;         # -- throws error (not usable): can't handle data, only files
+            my $off = $blob*4;
+            $_ = substr($ret,$off,4); my $posStart = unpack("I"); $off += 4;
+            $_ = substr($ret,$off,4); my $posEnd = unpack("I"); $off += 4;
+            $ret = substr($ret,$posStart,$posEnd-$posStart);
+
+         } else {       # -- still cumbersome, and additionally won't work (yet)
+      		my $file = "/tmp/zim_tmpfile_cluster$cluster-pid$$";
+      		open(my $fhz,">","$file.xz");
+      		print $fhz $data;
+      		close($fhz);
+            my $z = new IO::Uncompress::AnyUncompress("$file.xz");         # -- must be a file, can't handle data itself
+            if($z) {
+               seek($z, $blob*4, 0);
+               read($z, $_, 4); my $posStart = unpack("I");
+               read($z, $_, 4); my $posEnd = unpack("I");
+               seek($z, $posStart, 0);
+               read($z, $ret, $posEnd-$posStart);
+               close($z);
+            } else {
+               # -- uncomment next 2 lines as soon IO::Uncompress::AnyUncompress really works
+               #print STDERR "ZIM.pm: ERR: #$$: XZ uncompress failed: $AnyUncompressError\n";
+               #push(@{$self->{error}},"XZ uncompress failed: $AnyUncompressError");
+               $ret = '';
+            }
+            unlink $file;
+         }
       }
-      wait;
-
-		open(DATA, $file);
-		seek(DATA, $blob*4, 0);
-		read(DATA, $_, 4); my $posStart = unpack("I");
-		read(DATA, $_, 4); my $posEnd = unpack("I");
-		seek(DATA, $posStart, 0);
-		read(DATA, $ret, $posEnd-$posStart);
-		close(DATA);
-
-      unlink $file;
       if($opts && $opts->{dest}) {
          print "INF: #$$: writing $opts->{dest}\n" if($self->{verbose});
          open(my $fhx,">",$opts->{dest});
@@ -228,11 +263,11 @@ sub cluster_blob {
       }
 
 	} else {
-		my $data;
-		read($fh, $data, $size);
-		$_ = substr $data, $blob*4, 4;my $posStart = unpack("I");
-		$_ = substr $data, $blob*4+4, 4;my $posEnd = unpack("I");
-		$ret = substr $data, $posStart, $posEnd-$posStart;
+      my $data;
+      read($fh, $data, $size);
+      $_ = substr $data, $blob*4, 4; my $posStart = unpack("I");
+      $_ = substr $data, $blob*4+4, 4; my $posEnd = unpack("I");
+      $ret = substr $data, $posStart, $posEnd-$posStart;
       if($opts && $opts->{dest}) {
          print "INF: #$$: writing $opts->{dest}\n" if($self->{verbose});
          open(my $fhx,">",$opts->{dest});
@@ -241,7 +276,7 @@ sub cluster_blob {
       } else {
    		return $ret;
       }
-	}
+   }
 }
 
 # -- read ARTICLE NUMBER
@@ -291,7 +326,7 @@ sub output_article {
 			last;
 		}
       # -- binary search (above) failed: we need to create an index, and fetch the title to compare
-		if($max < $min){
+		if(0 && $max < $min){
 			$self->{article} = undef;
 			$self->{article}->{url} = "pattern=$url";
 			$self->{article}->{namespace} = "SEARCH";
@@ -306,6 +341,10 @@ sub output_article {
 			$self->{article}->{mimetype} = 0; # need for Content-Type: text/html; charset=utf-8
 			return $m;
 		}
+      if($max < $min) {
+         push(@{$self->{error}},"'$url' not found");
+         return '';
+      }
 	}
 	return $self->output_articleNumber($an,$opts);
 }
@@ -381,14 +420,15 @@ sub fts {
       my $db = Search::Xapian::Database->new($file_xapian); 
       my $enq = $db->enquire($q);
       print "INF: #$$: Xapian Query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
-      my @r = $enq->matches(0,100);
+      $opts = $opts || { };
+      my @r = $enq->matches($opts->{offset}||0,$opts->{limit}||100);
       my @re;
       foreach my $m (@r) {
          my $doc = $m->get_document();
          my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, _url => "/".$doc->get_data() };
          $self->output_article($e->{_url},{metadataOnly=>1});
          #foreach my $k (keys %{$self->{article}}) {
-         foreach my $k (qw(url title revision number namespace)) {
+         foreach my $k (qw(url title revision number namespace mimetype)) {
             $e->{$k} = $self->{article}->{$k};
          }
          $e->{id} = $e->{number}; delete $e->{number};
@@ -402,91 +442,169 @@ sub fts {
    #} 
 }
 
-# only for debug; program don't need it
-sub debug{
-   my $self = shift;
-	while(@_){
-		my ($k, $v) = (shift, shift);
-		print STDERR "\x1b[34;1m{$k} = $v\x1b[m\n";
-	}
-	print STDERR "\n";
-}
-# end subs for read into «file.zim»
-
 sub server {
-   # net connection (main procedure)
    my $self = shift;
    my $fh = $self->{fh};
 
    $self->{port} = $self->{port} || 8080;
-   $self->{ip} = $self->{ip} || '127.0.0.1';
+   $self->{ip} = $self->{ip} || '0.0.0.0';
 
-   my ($server_ip, $server_port) = ($self->{ip}, $self->{port});
-   my ($PF_UNIX, $PF_INET, $PF_IMPLINK, $PF_NS) = (1..4) ;
-   my ($SOCK_STREAM, $SOCK_DGRAM, $SOCK_RAW, $SOCK_SEQPACKET, $SOCK_RDM) = (1..5) ;
-   my ($d1, $d2, $prototype) = getprotobyname ("tcp");
-
-   socket(SSOCKET, $PF_INET, $SOCK_STREAM, $prototype) || die "ZIM.pm: ERR: socket: $!";
-   bind(SSOCKET, pack("SnCCCCx8", 2, $server_port, split(/\./,$server_ip))) || die "ZIM.pm: ERR: bind: $!";
-   listen(SSOCKET, 5) || die "ZIM.pm: ERR: connect: $!";
+   if(1) {     # -- old code
+      my ($server_ip, $server_port) = ($self->{ip}, $self->{port});
+      my ($PF_UNIX, $PF_INET, $PF_IMPLINK, $PF_NS) = (1..4) ;
+      my ($SOCK_STREAM, $SOCK_DGRAM, $SOCK_RAW, $SOCK_SEQPACKET, $SOCK_RDM) = (1..5) ;
+      my ($d1, $d2, $prototype) = getprotobyname ("tcp");
    
-   #	To create socket require to fork process.
-   #	Because the browser connect five socket simultaneously at "localhost:8080" each one ask a diferent url.
-   #
-   #	Note: The son process are terminated and they are found as defunct with ps program. I don't know it.
-   $SIG{CHLD} = 'IGNORE';
-   while(1){
-   # bucle for parent
-   	my $client_addr = accept(CSOCKET,SSOCKET) || die "ZIM.pm: ERR: $!";
-   	last unless fork;
+      socket(SSOCKET, $PF_INET, $SOCK_STREAM, $prototype) || die "ZIM.pm: ERR: socket: $!";
+      bind(SSOCKET, pack("SnCCCCx8", 2, $server_port, split(/\./,$server_ip))) || die "ZIM.pm: ERR: bind: $!";
+      listen(SSOCKET, 5) || die "ZIM.pm: ERR: connect: $!";
+      
+      $SIG{CHLD} = 'IGNORE';
+      $SIG{PIPE} = 'IGNORE';
+      
+      while(1) {
+      	my $client_addr = accept(CSOCKET,SSOCKET) || die "ZIM.pm: ERR: $!";
+      	last unless fork;            # -- parent remains in while(), child exits
+      }
+      $self->processRequest(\*CSOCKET);
+
+   } else {    # -- new code (not yet functional)
+      my $server = IO::Socket::INET->new(
+         LocalAddr => $self->{ip},
+         LocalPort => $self->{port},
+         Type => SOCK_STREAM,
+         Reuse => 1,
+         # Blocking => 0,
+         # Timeout => 0.5,
+         Listen => 10 )
+      or die "ZIM.pm: ERROR: can't start a tcp server on $self->{ip}:$self->{port}: $!\n";
+
+      $SIG{PIPE} = 'IGNORE';
+      $SIG{CHLD} = 'IGNORE';
+
+      my $rs = new IO::Select();
+
+      $rs->add($server);
+
+      while(1) {
+         my($rhs) = IO::Select->select($rs,undef,undef,0.1);
+         foreach my $rh (@$rhs) {
+            if($rh==$server) {
+               my $c = $rh->accept();
+               $rs->add($c);
+               
+            } else {
+               if(fork()==0) {
+                  $self->processRequest($rh);
+               }
+               $rs->remove($rh);
+            }
+         }
+      }
    }
-   # only sons are connected
+}
+
+sub processRequest {
+   my $self = shift;
+   my $cs = shift;
+   
+   # -- we need to reopen zim file as we forked process
    open(my $fh,"<",$self->{file});
    $self->{fh} = $fh;
-   while(1){
-   	my $http_message;
-   	while(1){
-   		my $message_part;
-   		recv(CSOCKET, $message_part, 1000, 0);
-   		$http_message .= $message_part;
-   		last, if(length($message_part)<1000);
-   	}
-   #		write
-   	if($http_message =~  /^GET (.+) HTTP\/1.1\r\n/){
-   # Request-Line Request HTTP-message
-   # ("OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "CONNECT", "$token+");
-   		my $url = $1;
+
+   while(1) {                # -- keep-alive operation (exit only if we fail to send)
+   	my $http_header;
+
+      while(1) {             # -- read the http request header
+         my $m;
+         recv($cs, $m, 1000, 0);
+         $http_header .= $m;
+         last if(length($m)<1000);
+      }
+
+      # -- processing request
+      if($http_header =~  /^GET (.+) HTTP\/1.1\r\n/){
+         # -- Request-Line Request HTTP-message
+         #    ("OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "CONNECT", "$token+");
+         my $url = $1;
+
          print "INF: #$$: server: requested $url\n" if($self->{verbose});
+
    		$url =~ s/%(..)/chr(hex($1))/eg;
-   		$self->entry($self->{header}->{mainPage}), $url = "/".$self->{article}->{namespace}."/".$self->{article}->{url} if $url eq "/";
+
+         $self->entry($self->{header}->{mainPage}), $url = "/".$self->{article}->{namespace}."/".$self->{article}->{url} if $url eq "/";
+
          print "INF: #$$: server:   serving $url\n" if($self->{verbose});
+         
+         my($status,$body,$mime);
+         $status = 200;
+         
+         if($url =~ /^\/rest\?(.*)/) {
+            my $in;
+            my $st = time();
+            foreach my $kv (split(/&/,$1)) {
+               my($k,$v) = ($kv=~/(\w+)=(.*)/);
+               $in->{$k} = $v;
+            }
+            $body = to_json({
+               hits => $self->fts($in->{q},$in),
+               server => {
+                  name => "zim web-server $::VERSION ($NAME $VERSION)",
+                  elapsed => time()-$st,
+                  time => time(),
+                  date => scalar localtime()
+               }
+            },{ pretty => $in->{_pretty}, canonical => 1 });
+            $mime = 'application/json';
 
-   		$url = "/-/favicon", if $url eq "/favicon.ico";
-   #		$url =~ s#(/.*?/.*?)$#$1#;
-   		$url = "/A$url", unless $url =~ "/.*/";  # for search
+         } else {
+            $url = "/-/favicon" if $url eq "/favicon.ico";
+            # $url =~ s#(/.*?/.*?)$#$1#;
 
-   		my $body  = $self->output_article($url);
-   		my $sz = length($body);
-   		my $mime = $self->{mime}->[$self->{article}->{"mimetype"}];
+            $url = "/A$url" unless $url =~ "/.*/";       # -- complete url if necessary
 
-   #		print STDERR "\x1b[31m$$: sending ... $self->{article}->{number} \c[[41;38;1m/$self->{article}->{namespace}/$self->{article}->{url}\c[[m\n";
+            $body  = $self->output_article($url);
+            $mime = $self->{article}->{mimetype} >= 0 ? $self->{mime}->[$self->{article}->{mimetype}] : "text/plain";
+
+            if($self->error()) {
+               $status = 404;
+               $body = "<html><head><title>404 file not found</title></head><body><h1>404 file not found</h1>"
+                  .$self->error()
+                  ."</body></html>";
+               $mime = 'text/html';
+               $self->{error} = [];
+            }
+         }
+
+         my $sz = length($body);
+
          my $m = join("\r\n",
             "HTTP/1.1 200 OK",
             "Connection: Keep-Alive",
             "Keep-Alive: timeout=30",
             "Content-Type: $mime",
-            "Content-Length: $sz","",$body);
-   		send (CSOCKET, $m, 0) || last;
-   	} else {
-   		last;
-   	}
+            "Content-Length: $sz",
+            "Access-Control-Allow-Headers: *",     # -- CORS, allow XHR to make requests
+            "",
+            $body);
+         send($cs, $m, 0) || last;
+
+      } elsif($http_header =~  /^OPTIONS (.+) HTTP\/1.1\r\n/){
+         my $m = join("\r\n",
+            "HTTP/1.1 200 OK",
+            "Connection: Keep-Alive",
+            "Keep-Alive: timeout=30",
+            "Access-Control-Allow-Headers: *",     # -- CORS, allow XHR to make requests
+            "");
+         send($cs, $m, 0) || last;
+         
+      } else {
+         last;
+      }
    }
-   wait;
-   shutdown(CSOCKET, 2) ;
+   shutdown($cs,2);
    close($fh);
-   
-   #print STDERR "\x1b[31;42m$$: goodbye\c[[m\n";
-   # son defunct
+   exit 0;
 }
 1;
 __END__
@@ -510,8 +628,6 @@ __END__
 	output_articleNumber
 
 	output_article
-
-	debug
 
 =head1 DESCRIPTION
 

@@ -3,8 +3,8 @@
 # == zim CLI (Command Line Interface)
 #  written by Rene K. Mueller
 #
-my $APPNAME = 'zim';
-my $VERSION = '0.0.4';
+our $APPNAME = 'zim';
+our $VERSION = '0.0.4';
 #
 # History:
 # 2020/03/29: 0.0.4: 'server' enabled, very experimental web-server functionality
@@ -57,7 +57,7 @@ my $cmd = shift(@ARGV);
 if($cmd eq 'info' || $cmd eq 'i') {
    print to_json($z->info(),{pretty=>1,canonical=>1});
 
-} elsif($cmd eq 'article' || $cmd eq 'a' || $cmd eq '' || $cmd eq 'extract' || $cmd eq 'x') {
+} elsif($cmd eq 'article' || $cmd eq 'a' || $cmd eq 'extract' || $cmd eq 'x') {
    @ARGV = ( '' ) unless(@ARGV);
    foreach my $u (@ARGV) {
       if($arg && $arg->{regexp}) {
@@ -90,7 +90,7 @@ if($cmd eq 'info' || $cmd eq 'i') {
       }
    }
 
-} elsif($cmd eq 'index' || $cmd eq 'ix' || $cmd eq 'ls') {
+} elsif($cmd eq 'index' || $cmd eq 'ix' || $cmd eq 'ls' || $cmd eq '') {
    foreach my $i (@{$z->index()}) {
       print "$i\n";
    }
@@ -134,7 +134,7 @@ sub help {
    commands:
       info              show info of zim file
          i                  \"       \"
-      index             list all entries
+      index             list all entries (default)
          ix                 \"       \"
          ls                 \"       \"
       search <q>        list all entries with matching query, use optionally -i
@@ -148,8 +148,8 @@ sub help {
       server            start web-server serving zim-file content
       
    examples:
-      zim test.zim                  displays default page
-      zim test.zim i                display info of zim file
+      zim test.zim                  list all entries
+      zim test.zim i                display metatada of zim file
       zim test.zim ix               display entire index of zim file
       zim test.zim -i s test        list urls of matching filenames
       zim test.zim a /A/Test        output article(s)
