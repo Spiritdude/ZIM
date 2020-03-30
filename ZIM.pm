@@ -567,7 +567,7 @@ sub processRequest {
    }
 
    while(1) {                # -- keep-alive operation (exit only if we fail to send)
-   	my $http_header;
+      my $http_header;
 
       while(1) {             # -- read the http request header
          my $m;
@@ -584,8 +584,6 @@ sub processRequest {
 
          print "INF: #$$: server: requested $url\n" if($self->{verbose});
 
-   		$url =~ s/%(..)/chr(hex($1))/eg;
-
          my(@header,$status,$body,$mime);
 
          $status = 200;
@@ -595,6 +593,8 @@ sub processRequest {
             my $st = time();
             foreach my $kv (split(/&/,$1)) {
                my($k,$v) = ($kv=~/(\w+)=(.*)/);
+               $k =~ s/%(..)/chr(hex($1))/eg;
+               $v =~ s/%(..)/chr(hex($1))/eg;
                $in->{$k} = $v;
             }
             my @r;
@@ -628,6 +628,9 @@ sub processRequest {
          } else {
             my $me = $self;                              # -- me might point later to catalog entry itself
             my($base,$home,$title);
+         
+            $url =~ s/%(..)/chr(hex($1))/eg;
+
             if($self->{catalog}) {                       # -- dealing with a catalog, determine which entry
                if($url =~ s/\/([\w\-]+)\//\//) {
                   $base = $1;
