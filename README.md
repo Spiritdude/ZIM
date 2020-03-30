@@ -40,16 +40,17 @@ due the experimental nature of both.
 
 ## Usage
 ```
-USAGE zim 0.0.4: [<opts>] <zimfile> <cmd> [<arguments>]
+USAGE zim 0.0.5: [<opts>] <zimfile> <cmd> [<arguments>]
    options:
       --verbose         increase verbosity
         -v or -vvv         "        "
       --version         print version and exit
-      --index=<ix>      define which xapian index to consider, fulltext or title (default: fulltext)
+      --index=<ix>      define which xapian index to consider, fts or title (default: fulltext)
       --regexp          treat args as regexp, in combination of 'article', 'extract' commands
         -e                       "                      "
       --case_insens     case-insensitivity, in combination of 'search', and -e with 'article' and 'extract'
         -i                       "         "
+      --output=<fname>  define output filename in combination with 'extract'
       --port=<p>        set port for server (default: 8080)
       --ip=<ip>         set address to bind server (default: 0.0.0.0)
 
@@ -65,20 +66,20 @@ USAGE zim 0.0.4: [<opts>] <zimfile> <cmd> [<arguments>]
          a [<u>..]          "                  "
       extract [<u>..]   extract article content to file, optionally use -e and -i
          x [<u>..]          "                  "
-      query <q>         query internal xapian indices (fulltext or title), use --index=title to switch
+      query <q>         query internal xapian indices (fts or title), use --index=title to switch
          q <q>              "                  "
       server            start web-server serving zim-file content
       
    examples:
       zim test.zim                  list all entries
-      zim test.zim i                display info of zim file
+      zim test.zim i                display metatada of zim file
       zim test.zim ix               display entire index of zim file
       zim test.zim -i s test        list urls of matching filenames
       zim test.zim a /A/Test        output article(s)
       zim test.zim -e -i a test     output articles matching terms case-insensitive
       zim test.zim x /A/Test        extract article content as file(s)
       zim test.zim -e x '\.png'     extract article content matching regexp
-      zim test.zim q test           query fulltext using internal xapian index (if there are such)
+      zim test.zim q test           query fts using internal xapian index (if there are such)
       zim test.zim --index=title q test     query fts but only titles
       zim test.zim server           start web-server
 
