@@ -174,7 +174,7 @@ returns something like this:
 
 #### RESTful: Catalog
 
-Addtionally `http://127.0.0.1:8080/rest?catalog&_pretty=1` provides list ZIM files currently served, something like this:
+Addtionally `http://127.0.0.1:8080/rest?catalog&_pretty=1` provides the catalog or content of the library of ZIM files currently served, something like this:
 ```
 {
    "results": { 
