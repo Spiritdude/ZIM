@@ -47,6 +47,11 @@ sub new {
          my $b = $f; $b =~ s/\.zim$//;
          print "INF: #$$: library: adding $b ($f)\n" if($self->{verbose});
          $self->{catalog}->{$b} = new ZIM({file=>$f});
+         my $me = $self->{catalog}->{$b};
+         $me->entry($me->{header}->{mainPage});
+         $home = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
+         $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
+         push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header} });
       }
       return $self;
    }
@@ -87,6 +92,13 @@ sub new {
    }
    $self->{mime} = \@mime;
    $/ = "\n";
+
+   my $me = $self;
+   $me->entry($me->{header}->{mainPage});
+   $home = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
+   $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
+   push(@{$self->{_catalog}},{ home=>$home, title=>$title, meta=>$me->{header} });
+
    return $self;
 }
 
@@ -203,10 +215,12 @@ sub cluster_blob {
    print "INF: #$$: cluster blob (cluster=$cluster, pos=$pos, size=$size)\n" if($self->{verbose}>2);
    
    seek($fh, $pos, 0);
+
    my %cluster;
+
    read($fh, $_, 1); $cluster{compression_type} = unpack("C");
    
-   $cluster{offset_size} = $cluster{compression_type} & (1<<4) ? 8 : 4;
+   $cluster{offset_size} = $cluster{compression_type} & (1<<4) ? 8 : 4;    # -- see https://openzim.org/wiki/ZIM_file_format
 
    # print "$cluster{compression_type}:$cluster{offset_size}\n";
    
@@ -631,6 +645,18 @@ sub processRequest {
             },{ pretty => $in->{_pretty}, canonical => 1 });
             $mime = 'application/json';
 
+         } elsif($url =~ /^\/catalog\//) {
+            my $st = time();
+            $body = to_json({ 
+               catalog => $self->{_catalog} ? $self->{_catalog} : [],
+               server => {
+                  name => "zim web-server $::VERSION ($NAME $VERSION)",
+                  elapsed => time()-$st,
+                  time => time(),
+                  date => scalar localtime()
+               }
+            }, { pretty => 1, canonical => 1});
+            
          } else {
             my $me = $self;                              # -- me might point later to catalog entry itself
             my($base,$home,$title);
@@ -639,15 +665,6 @@ sub processRequest {
             $url =~ s/%(..)/chr(hex($1))/eg;
 
             if($self->{catalog}) {                       # -- dealing with a catalog, determine which entry
-               foreach my $e (sort keys %{$self->{catalog}}) {       # -- FIXIT: wasteful, only perform this ONCE
-                  my $me = $self->{catalog}->{$e};
-                  $me->entry($me->{header}->{mainPage});
-                  $home = "/$e/".$me->{article}->{namespace}."/".$me->{article}->{url};
-                  $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
-                  my $meta = fnum($me->{header}->{articleCount}) . " articles".
-                     "<div class=id>$e (".fnum(int($me->{header}->{filesize}/1024/1024))." MiB)</div>";
-                  push(@cat,{ base=>$e, home=>$home, title=>$title, meta=>$meta });
-               }
                if($url =~ s/\/([\w\-]+)\//\//) {
                   $base = $1;
                   if($self->{catalog}->{$base}) {
@@ -658,8 +675,10 @@ sub processRequest {
                   }
                } else {                                  # -- provide overview of items in catalog
                   $body = "<html><head><title>Catalog</title></head><style>html{margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{font-size:1.5em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
-                  foreach my $e (@cat) {
-                     $body .= "<a href=\"$e->{home}\"><span class=entry><img class=icon src=\"/$e->{base}/-/favicon\"> $e->{title}<div class=meta>$e->{meta}</div></span></a>";
+                  foreach my $e (@{$self->{_catalog}}) {
+                     my $meta = fnum($e->{meta}->{articleCount}) . " articles".
+                        "<div class=id>$e->{base} (".fnum(int($e->{meta}->{filesize}/1024/1024))." MiB)</div>";
+                     $body .= "<a href=\"$e->{home}\"><span class=entry><img class=icon src=\"/$e->{base}/-/favicon\"> $e->{title}<div class=meta>$meta</div></span></a>";
                   }
                   $body .= "</div><div class=footer><a href=\"https://github.com/Spiritdude/ZIM\">zim web-server</a> $::VERSION ($NAME $VERSION)</div></body></html>";
                   $mime = 'text/html';
@@ -689,7 +708,7 @@ sub processRequest {
 
             if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
                my $mh = "";
-               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#fff;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}</style>";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#ddd;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}</style>";
                $mh .= "<script>
 var _zim_base = \"$base\";
 function _zim_search() {
@@ -729,7 +748,7 @@ function _zim_search() {
                $mh .= "<a href=\"/\"><span class=zim_entry>Home</span></a>";
                if($base) {
                   if($self->{catalog}) {
-                     foreach my $e (@cat) {
+                     foreach my $e (@{$self->{_catalog}}) {
                         my $s = $e->{base} eq $base ? "selected" : "";
                         $mh .= "<a href=\"$e->{home}\"><span class=\"zim_entry $s\">$e->{title}</span></a>";
                      }

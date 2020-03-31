@@ -180,6 +180,59 @@ returns something like this:
 }
 ```
 
+### Catalog
+
+Addtionally `http://127.0.0.1:8080/catalog/` provides list ZIM files currently served, something like this:
+```
+{
+   "catalog" : [
+      {
+         "base" : "wikipedia_en_all_mini",
+         "home" : "/wikipedia_en_all_mini/A/User:The_other_Kiwix_guy/Landing",
+         "meta" : {
+            "articleCount" : 14398965,
+            "checksumPos" : 11329506544,
+            "clusterCount" : 19889,
+            "clusterPtrPos" : 967038701,
+            "file" : "wikipedia_en_all_mini.zim",
+            "filesize" : 11329506560,
+            "layoutPage" : 4294967295,
+            "magicNumber" : 90,
+            "mainPage" : 13391338,
+            "mimeListPos" : 80,
+            "mtime" : 1584558562,
+            "titlePtrPos" : 115191936,
+            "urlPtrPos" : 216,
+            "uuid" : "e5827ab7fe15b4911102d2f2c1a41ff7",
+            "version" : 5
+         },
+         "title" : "Wikipedia"
+      },
+      {
+         "base" : "wikiquote_en_all_maxi",
+         "home" : "/wikiquote_en_all_maxi/A/Main_Page",
+         "meta" : {
+            "articleCount" : 102516,
+            "checksumPos" : 704843569,
+            "clusterCount" : 571,
+            "clusterPtrPos" : 6153189,
+            "file" : "wikiquote_en_all_maxi.zim",
+            "filesize" : 704843585,
+            "layoutPage" : 4294967295,
+            "magicNumber" : 90,
+            "mainPage" : 36464,
+            "mimeListPos" : 80,
+            "mtime" : 1581022402,
+            "titlePtrPos" : 820350,
+            "urlPtrPos" : 222,
+            "uuid" : "eea238af8d02a7096a1098fd7d92a0c1",
+            "version" : 5
+         },
+         "title" : "Wikiquote"
+      },
+....
+```
+
 ## ZIM.pm
 
 **Note: due the experimental nature the API might change until VERSION 0.1.0 is reached.**
