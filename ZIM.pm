@@ -8,6 +8,7 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/03/31: 0.0.8: preliminary 64bit cluster size support to support large fulltext indexes (>4GB)
 # 2020/03/30: 0.0.7: support large article extraction direct to file (without large memory consumption) for wikipedia.zim xapian indices
 # 2020/03/30: 0.0.6: preliminary support for library (multiple zim) for server()
 # 2020/03/30: 0.0.5: renaming methods: article(url) and articleById(n)
@@ -17,7 +18,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.7';
+our $VERSION = '0.0.8';
 
 use strict;
 use Search::Xapian;
@@ -203,10 +204,14 @@ sub cluster_blob {
    
    seek($fh, $pos, 0);
    my %cluster;
-   read($fh, $_, 1); $cluster{"compression_type"} = unpack("C");
+   read($fh, $_, 1); $cluster{compression_type} = unpack("C");
+   
+   $cluster{offset_size} = $cluster{compression_type} & (1<<4) ? 8 : 4;
 
+   # print "$cluster{compression_type}:$cluster{offset_size}\n";
+   
    # -- compressed?
-   if($cluster{"compression_type"} == 4) {
+   if(($cluster{compression_type} & 0x0f) == 4) {
       my $data;
       
       # -- FIXIT: do not read large compressed files into memory, but small chunks only to files
@@ -283,15 +288,14 @@ sub cluster_blob {
       if(1 && ($size > 200_000_000 || ($opts && $opts->{dest}))) {
          if($opts && $opts->{dest}) {
             print "INF: #$$: writing $opts->{dest}\n" if($self->{verbose});
-      
             my $off = tell $fh;
             seek($fh, $off+$blob*4, 0);
-            read($fh, $_, 4); my $posStart = unpack("I");
-            read($fh, $_, 4); my $posEnd = unpack("I");
+            read($fh, $_, $cluster{offset_size}); my $posStart = unpack($cluster{offset_size}==4?"I":"Q");
+            read($fh, $_, $cluster{offset_size}); my $posEnd = unpack($cluster{offset_size}==4?"I":"Q");
             seek($fh, $off+$posStart, 0);
 
             $size = $posEnd-$posStart;
-
+            print "INF: #$$: extract chunk size=$size (offset=$off, start=$posStart, end=$posEnd)\n" if($self->{verbose}>2);
             open(OUT,">",$opts->{dest});
             my $bs = 4096*1024;                          # -- use 4MB chunks
             while(1) {
@@ -451,11 +455,13 @@ sub fts {
 
    if(!-e $file->{fulltext}) {
       print "INF: #$$: extract /X/fulltext/xapian -> $file->{fulltext}\n";
-      $self->article("/X/fulltext/xapian",{dest=>$file->{fulltext}}) 
+      $self->article("/X/fulltext/xapian",{dest=>$file->{fulltext}});
+      $self->{error} = [];    # -- in case extraction failed
    }
    if(!-e $file->{title}) {
       print "INF: #$$: extract /X/title/xapian -> $file->{title}\n";
-      $self->article("/X/title/xapian",{dest=>$file->{title}}) 
+      $self->article("/X/title/xapian",{dest=>$file->{title}});
+      $self->{error} = [];    # -- in case extraction failed
    }
    my $file_xapian = $file->{$opts->{index}||'fulltext'};
    print "INF: #$$: Xapian Index $file_xapian\n" if($self->{verbose}>1);
@@ -628,10 +634,20 @@ sub processRequest {
          } else {
             my $me = $self;                              # -- me might point later to catalog entry itself
             my($base,$home,$title);
-         
+            my(@cat);
+            
             $url =~ s/%(..)/chr(hex($1))/eg;
 
             if($self->{catalog}) {                       # -- dealing with a catalog, determine which entry
+               foreach my $e (sort keys %{$self->{catalog}}) {       # -- FIXIT: wasteful, only perform this ONCE
+                  my $me = $self->{catalog}->{$e};
+                  $me->entry($me->{header}->{mainPage});
+                  $home = "/$e/".$me->{article}->{namespace}."/".$me->{article}->{url};
+                  $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
+                  my $meta = fnum($me->{header}->{articleCount}) . " articles".
+                     "<div class=id>$e (".fnum(int($me->{header}->{filesize}/1024/1024))." MiB)</div>";
+                  push(@cat,{ base=>$e, home=>$home, title=>$title, meta=>$meta });
+               }
                if($url =~ s/\/([\w\-]+)\//\//) {
                   $base = $1;
                   if($self->{catalog}->{$base}) {
@@ -641,14 +657,9 @@ sub processRequest {
                      $body = "unknown catalog entry";
                   }
                } else {                                  # -- provide overview of items in catalog
-                  $body = "<html><head><title>Catalog</title></head><style>html{margin:0;padding:0}body{background:#ddd;font-size:1.6em;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#eee;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{background:#fff}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.5em;opacity:0.7}</style><body><div class=catalog>";
-                  foreach my $e (sort keys %{$self->{catalog}}) {
-                     my $me = $self->{catalog}->{$e};
-                     $me->entry($me->{header}->{mainPage});
-                     $home = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
-                     $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
-                     my $meta = fnum($me->{header}->{articleCount}) . " articles (".fnum(int($me->{header}->{filesize}/1024/1024))." MiB)<br><div class=id>$e</div>";
-                     $body .= "<a href=\"/$e$home\"><span class=entry><img class=icon src=\"/$e/-/favicon\"> $title<div class=meta>$meta</div></span></a>";
+                  $body = "<html><head><title>Catalog</title></head><style>html{margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{font-size:1.5em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
+                  foreach my $e (@cat) {
+                     $body .= "<a href=\"$e->{home}\"><span class=entry><img class=icon src=\"/$e->{base}/-/favicon\"> $e->{title}<div class=meta>$e->{meta}</div></span></a>";
                   }
                   $body .= "</div><div class=footer><a href=\"https://github.com/Spiritdude/ZIM\">zim web-server</a> $::VERSION ($NAME $VERSION)</div></body></html>";
                   $mime = 'text/html';
@@ -676,8 +687,60 @@ sub processRequest {
             $body = $body || $me->article($url);
             $mime = $mime || ($me->{article}->{mimetype} >= 0 ? $me->{mime}->[$me->{article}->{mimetype}] : "text/plain");
 
-            if(0 && $base && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
-               $body =~ s#</body>#<div class=zim></div></body>#;
+            if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
+               my $mh = "";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#fff;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}</style>";
+               $mh .= "<script>
+var _zim_base = \"$base\";
+function _zim_search() {
+   var q = document.getElementById('_zim_search_q').value;
+   var xhr = new XMLHttpRequest();
+   document.getElementById('_zim_results_hint').innerHTML = 'searching ...';
+   var id = document.getElementById('_zim_results');
+   id.innerHTML = '...';
+   xhr.onload = function() {
+      if(xhr.status >= 200 && xhr.status < 300) {
+         //console.log(xhr.responseText);
+         var data = JSON.parse(xhr.responseText);
+         console.log(data);
+         id.classList.toggle('active',true);
+         var o = '';
+         //id.innerHTML = JSON.stringify(data);
+         if(data && data.hits) {
+            document.getElementById('_zim_results_hint').innerHTML = data.hits.length + ' results';
+            for(var e of data.hits) {
+               if(e.title.length==0) {
+                  e.title = e.url.replace(/.*\\//,'');
+               }
+               o += '<a href=\"' + e.url + '\">' + e.title + '</a><br>';
+            }
+            id.innerHTML = o;
+         } else {
+            document.getElementById('_zim_results_hint').innerHTML = 'search failed';
+         }
+      }
+   };
+   var p = { q: q };
+   xhr.open('GET','/rest?'+Object.keys(p).map(function(k){return k+'='+encodeURIComponent(p[k])}).join('&'));
+   xhr.send();
+}               
+</script>";
+               $mh .= "<div class=zim_header>";
+               $mh .= "<a href=\"/\"><span class=zim_entry>Home</span></a>";
+               if($base) {
+                  if($self->{catalog}) {
+                     foreach my $e (@cat) {
+                        my $s = $e->{base} eq $base ? "selected" : "";
+                        $mh .= "<a href=\"$e->{home}\"><span class=\"zim_entry $s\">$e->{title}</span></a>";
+                     }
+                  }
+               }
+               unless($self->{no_search}) {
+                  $mh .= "<input class=zim_search id=_zim_search_q onchange=\"_zim_search()\" default=\"search\"><span id=_zim_results_hint></span>";
+               }
+               $mh .= "</div>";
+               $mh .= "<div id=_zim_results class=zim_results></div>";
+               $body =~ s#<body([^>]*)>#<body$1>$mh#;
             }
             
             if($self->error()) {
