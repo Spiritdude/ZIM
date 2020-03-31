@@ -612,50 +612,49 @@ sub processRequest {
             my $in;
             my $st = time();
             foreach my $kv (split(/&/,$1)) {
-               my($k,$v) = ($kv=~/(\w+)=(.*)/);
-               $k =~ s/%(..)/chr(hex($1))/eg;
-               $v =~ s/%(..)/chr(hex($1))/eg;
-               $in->{$k} = $v;
+               if($kv=~/(\w+)=(.*)/) {
+                  my($k,$v) = ($1,$2);
+                  $k =~ s/%(..)/chr(hex($1))/eg;
+                  $v =~ s/%(..)/chr(hex($1))/eg;
+                  $in->{$k} = $v;
+               } elsif($kv=~/(\w+)/) {
+                  $in->{$1}++;
+               }
             }
-            my @r;
-            if($self->{catalog}) {
-               if($in->{content}) {
-                  @r = map { $_->{url} = "/$in->{content}$_->{url}"; $_ } @{$self->{catalog}->{$in->{content}}->fts($in->{q},$in)};
-               } else {
-                  foreach my $e (sort keys %{$self->{catalog}}) {
-                     my $me = $self->{catalog}->{$e};
-                     push(@r,map { $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});  # -- rebase
+            my $res = { };
+            if($in->{q}) {
+               my @r;
+               if($self->{catalog}) {
+                  if($in->{content}) {
+                     @r = map { $_->{url} = "/$in->{content}$_->{url}"; $_ } @{$self->{catalog}->{$in->{content}}->fts($in->{q},$in)};
+                  } else {
+                     foreach my $e (sort keys %{$self->{catalog}}) {
+                        my $me = $self->{catalog}->{$e};
+                        push(@r,map { $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});  # -- rebase
+                     }
+                     @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
+                     my $r = 0;
+                     @r = map { $_->{rank} = $r++; $_ } @r;             # -- rerank
+                     @r = splice(@r,$in->{offset},$in->{limit}) if($in->{offset}||$in->{limit});      # -- apply limit & offset
                   }
-                  @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
-                  my $r = 0;
-                  @r = map { $_->{rank} = $r++; $_ } @r;             # -- rerank
-                  @r = splice(@r,$in->{offset},$in->{limit}) if($in->{offset}||$in->{limit});      # -- apply limit & offset
+               } else {
+                  @r = @{$self->fts($in->{q},$in)};
                }
-            } else {
-               @r = @{$self->fts($in->{q},$in)};
-            }
-            $body = to_json({
-               hits => \@r,
-               server => {
-                  name => "zim web-server $::VERSION ($NAME $VERSION)",
-                  elapsed => time()-$st,
-                  time => time(),
-                  date => scalar localtime()
-               }
-            },{ pretty => $in->{_pretty}, canonical => 1 });
-            $mime = 'application/json';
+               $res = { hits => \@r };
 
-         } elsif($url =~ /^\/catalog\//) {
-            my $st = time();
+            } elsif($in->{catalog}) {
+               $res = { catalog => $self->{_catalog} ? $self->{_catalog} : [] };
+            }
             $body = to_json({ 
-               catalog => $self->{_catalog} ? $self->{_catalog} : [],
+               results => $res,
                server => {
                   name => "zim web-server $::VERSION ($NAME $VERSION)",
                   elapsed => time()-$st,
                   time => time(),
                   date => scalar localtime()
                }
-            }, { pretty => 1, canonical => 1});
+            }, { pretty => $in->{_pretty}, canonical => 1});
+            $mime = 'application/json';
             
          } else {
             my $me = $self;                              # -- me might point later to catalog entry itself
@@ -674,7 +673,7 @@ sub processRequest {
                      $body = "unknown catalog entry";
                   }
                } else {                                  # -- provide overview of items in catalog
-                  $body = "<html><head><title>Catalog</title></head><style>html{margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{font-size:1.5em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
+                  $body = "<html><head><title>Catalog</title></head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{font-size:1.5em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
                   foreach my $e (@{$self->{_catalog}}) {
                      my $meta = fnum($e->{meta}->{articleCount}) . " articles".
                         "<div class=id>$e->{base} (".fnum(int($e->{meta}->{filesize}/1024/1024))." MiB)</div>";
@@ -722,12 +721,13 @@ function _zim_search() {
          //console.log(xhr.responseText);
          var data = JSON.parse(xhr.responseText);
          console.log(data);
-         id.classList.toggle('active',true);
+         if(data.results.hits.length>0)
+            id.classList.toggle('active',true);
          var o = '';
          //id.innerHTML = JSON.stringify(data);
-         if(data && data.hits) {
-            document.getElementById('_zim_results_hint').innerHTML = data.hits.length + ' results';
-            for(var e of data.hits) {
+         if(data && data.results && data.results.hits) {
+            document.getElementById('_zim_results_hint').innerHTML = data.results.hits.length + ' results';
+            for(var e of data.results.hits) {
                if(e.title.length==0) {
                   e.title = e.url.replace(/.*\\//,'');
                }

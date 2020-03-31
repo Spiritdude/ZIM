@@ -1,5 +1,5 @@
 NAME=ZIM
-VERSION=0.0.7
+VERSION=0.0.8
 
 all::
 	@echo "make install deinstall edit backup git change push pull"

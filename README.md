@@ -122,7 +122,10 @@ so the first query via the browser won't take too long.
 ### RESTful API
 
 The endpoint is `http://127.0.0.1:8080/rest` and takes `GET` request arguments:
+
+#### RESTful: Full Text Search
 - `q`: the query term
+- `content`: define optionally the base in case multiple ZIM files are served with `--library`
 - `offset`:  define offset of results, default: 0
 - `limit`: limit results, default: 100
 - `_pretty=` `0` or `1` to enable pretty JSON formatting
@@ -132,45 +135,33 @@ Example: `http://127.0.0.1/rest?q=test&_pretty=1`
 returns something like this:
 ```
 {
-   "hits" : [
-      {
-         "_id" : 1676,
-         "_url" : "/A/Font_configuration/Examples",
-         "id" : 3592,
-         "mimetype" : "text/html",
-         "namespace" : "A",
-         "rank" : 1,
-         "revision" : 0,
-         "score" : 1,
-         "title" : "Font configuration/Examples",
-         "url" : "Font_configuration/Examples"
-      },
-      {
-         "_id" : 786,
-         "_url" : "/A/Font_Configuration/Chinese_()",
-         "id" : 3583,
-         "mimetype" : "text/html",
-         "namespace" : "A",
-         "rank" : 2,
-         "revision" : 0,
-         "score" : 0.99,
-         "title" : "Font Configuration/Chinese ()",
-         "url" : "Font_Configuration/Chinese_()"
-      },
-      ...
-      {
-         "_id" : 3242,
-         "_url" : "/A/X2Go",
-         "id" : 9663,
-         "mimetype" : "text/html",
-         "namespace" : "A",
-         "rank" : 100,
-         "revision" : 0,
-         "score" : 0.86,
-         "title" : "",
-         "url" : "X2Go"
-      }
-   ],
+   "results" : {
+      "hits" : [
+         {
+            "_id" : 1676,
+            "id" : "3592",
+            "mimetype" : "text/html",
+            "namespace" : "A",
+            "rank" : 1,
+            "revision" : 0,
+            "score" : 1,
+            "title" : "Font configuration/Examples",
+            "url" : "/A/Font_configuration/Examples"
+         },
+         {
+            "_id" : 786,
+            "id" : "3583",
+            "mimetype" : "text/html",
+            "namespace" : "A",
+            "rank" : 2,
+            "revision" : 0,
+            "score" : 0.99,
+            "title" : "Font Configuration/Chinese ()",
+            "url" : "/A/Font_Configuration/Chinese_()"
+         },
+         ...
+      ]
+   },
    "server" : {
       "date" : "Mon Mar 30 08:21:16 2020",
       "elapsed" : 0.035167932510376,
@@ -180,57 +171,59 @@ returns something like this:
 }
 ```
 
-### Catalog
+#### RESTful: Catalog
 
-Addtionally `http://127.0.0.1:8080/catalog/` provides list ZIM files currently served, something like this:
+Addtionally `http://127.0.0.1:8080/rest?catalog&_pretty=1` provides list ZIM files currently served, something like this:
 ```
 {
-   "catalog" : [
-      {
-         "base" : "wikipedia_en_all_mini",
-         "home" : "/wikipedia_en_all_mini/A/User:The_other_Kiwix_guy/Landing",
-         "meta" : {
-            "articleCount" : 14398965,
-            "checksumPos" : 11329506544,
-            "clusterCount" : 19889,
-            "clusterPtrPos" : 967038701,
-            "file" : "wikipedia_en_all_mini.zim",
-            "filesize" : 11329506560,
-            "layoutPage" : 4294967295,
-            "magicNumber" : 90,
-            "mainPage" : 13391338,
-            "mimeListPos" : 80,
-            "mtime" : 1584558562,
-            "titlePtrPos" : 115191936,
-            "urlPtrPos" : 216,
-            "uuid" : "e5827ab7fe15b4911102d2f2c1a41ff7",
-            "version" : 5
+   "results": { 
+      "catalog" : [
+         {
+            "base" : "wikipedia_en_all_mini",
+            "home" : "/wikipedia_en_all_mini/A/User:The_other_Kiwix_guy/Landing",
+            "meta" : {
+               "articleCount" : 14398965,
+               "checksumPos" : 11329506544,
+               "clusterCount" : 19889,
+               "clusterPtrPos" : 967038701,
+               "file" : "wikipedia_en_all_mini.zim",
+               "filesize" : 11329506560,
+               "layoutPage" : 4294967295,
+               "magicNumber" : 90,
+               "mainPage" : 13391338,
+               "mimeListPos" : 80,
+               "mtime" : 1584558562,
+               "titlePtrPos" : 115191936,
+               "urlPtrPos" : 216,
+               "uuid" : "e5827ab7fe15b4911102d2f2c1a41ff7",
+               "version" : 5
+            },
+            "title" : "Wikipedia"
          },
-         "title" : "Wikipedia"
-      },
-      {
-         "base" : "wikiquote_en_all_maxi",
-         "home" : "/wikiquote_en_all_maxi/A/Main_Page",
-         "meta" : {
-            "articleCount" : 102516,
-            "checksumPos" : 704843569,
-            "clusterCount" : 571,
-            "clusterPtrPos" : 6153189,
-            "file" : "wikiquote_en_all_maxi.zim",
-            "filesize" : 704843585,
-            "layoutPage" : 4294967295,
-            "magicNumber" : 90,
-            "mainPage" : 36464,
-            "mimeListPos" : 80,
-            "mtime" : 1581022402,
-            "titlePtrPos" : 820350,
-            "urlPtrPos" : 222,
-            "uuid" : "eea238af8d02a7096a1098fd7d92a0c1",
-            "version" : 5
+         {
+            "base" : "wikiquote_en_all_maxi",
+            "home" : "/wikiquote_en_all_maxi/A/Main_Page",
+            "meta" : {
+               "articleCount" : 102516,
+               "checksumPos" : 704843569,
+               "clusterCount" : 571,
+               "clusterPtrPos" : 6153189,
+               "file" : "wikiquote_en_all_maxi.zim",
+               "filesize" : 704843585,
+               "layoutPage" : 4294967295,
+               "magicNumber" : 90,
+               "mainPage" : 36464,
+               "mimeListPos" : 80,
+               "mtime" : 1581022402,
+               "titlePtrPos" : 820350,
+               "urlPtrPos" : 222,
+               "uuid" : "eea238af8d02a7096a1098fd7d92a0c1",
+               "version" : 5
+            },
+            "title" : "Wikiquote"
          },
-         "title" : "Wikiquote"
-      },
-....
+   ....
+}
 ```
 
 ## ZIM.pm
