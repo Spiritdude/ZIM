@@ -321,7 +321,7 @@ sub cluster_blob {
             close OUT;
             return;
          } else {
-            print STDERR "ZIM.pm: ERR: file too large (".fnum($size)." bytes) to read into memory, rather extract to a file\n";
+            print STDERR "ZIM.pm: ERR: file too large (".fnum3($size)." bytes) to read into memory, rather extract to a file\n";
             exit 0;
          }
       } else {
@@ -481,6 +481,10 @@ sub fts {
    print "INF: #$$: Xapian Index $file_xapian\n" if($self->{verbose}>1);
    if(1) {
       my $db = Search::Xapian::Database->new($file_xapian); 
+      
+      # -- it seems we have to truncate the query
+      $q = substr($q,0,7);    # -- 'microscope' -> 'microsc'
+
       my $enq = $db->enquire($q);
       print "INF: #$$: Xapian Query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
       $opts = $opts || { };
@@ -626,11 +630,11 @@ sub processRequest {
                my @r;
                if($self->{catalog}) {
                   if($in->{content}) {
-                     @r = map { $_->{url} = "/$in->{content}$_->{url}"; $_ } @{$self->{catalog}->{$in->{content}}->fts($in->{q},$in)};
+                     @r = map { $_->{base} = $in->{content}; $_->{url} = "/$in->{content}$_->{url}"; $_ } @{$self->{catalog}->{$in->{content}}->fts($in->{q},$in)};
                   } else {
                      foreach my $e (sort keys %{$self->{catalog}}) {
                         my $me = $self->{catalog}->{$e};
-                        push(@r,map { $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});  # -- rebase
+                        push(@r,map { $_->{base} = $e; $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});  # -- rebase
                      }
                      @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
                      my $r = 0;
@@ -639,6 +643,36 @@ sub processRequest {
                   }
                } else {
                   @r = @{$self->fts($in->{q},$in)};
+               }
+               if($in->{snippets}) {                           # -- let's try to extract relevant snippets
+                  for(my $i=0; $i<$in->{snippets}; $i++) {
+                     last if($i>=@r);
+                     my $me = $self;
+                     my $u;
+                     if($self->{catalog} && $r[$i]->{base}) {
+                        $me = $self->{catalog}->{$r[$i]->{base}};
+                        $u = $r[$i]->{url};
+                        $u =~ s/\/[^\/]+//;
+                     } else {
+                        $u = $r[$i]->{url};
+                     }
+                     my $body = $me->article($u);
+                     $body =~ s/<script>[^<]+<\/script>//mg;
+                     $body =~ s/<\/?(p|br)>/ /ig;
+                     $body =~ s/<[^>]+>//g;
+                     $body =~ s/\s+/ /g;
+                     my $exp = '';
+                     my $q = $in->{q};
+                     for(my $n=0; $n<5;) {
+                        if($body =~ s/(.{5,40})($q)(.{5,40})//i) {
+                           $exp .= "..$1<b>$2</b>$3..";
+                           $n++;
+                        } else {
+                           last;
+                        }
+                     }
+                     $r[$i]->{snippet} = $exp;
+                  }
                }
                $res = { hits => \@r };
 
@@ -675,8 +709,8 @@ sub processRequest {
                } else {                                  # -- provide overview of items in catalog
                   $body = "<html><head><title>Catalog</title></head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{font-size:1.5em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
                   foreach my $e (@{$self->{_catalog}}) {
-                     my $meta = fnum($e->{meta}->{articleCount}) . " articles".
-                        "<div class=id>$e->{base} (".fnum(int($e->{meta}->{filesize}/1024/1024))." MiB)</div>";
+                     my $meta = fnum3($e->{meta}->{articleCount}) . " articles".
+                        "<div class=id>$e->{base} (".fnum3(int($e->{meta}->{filesize}/1024/1024))." MiB)</div>";
                      $body .= "<a href=\"$e->{home}\"><span class=entry><img class=icon src=\"/$e->{base}/-/favicon\"> $e->{title}<div class=meta>$meta</div></span></a>";
                   }
                   $body .= "</div><div class=footer><a href=\"https://github.com/Spiritdude/ZIM\">zim web-server</a> $::VERSION ($NAME $VERSION)</div></body></html>";
@@ -707,7 +741,7 @@ sub processRequest {
 
             if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
                my $mh = "";
-               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#ddd;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}</style>";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#ddd;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00f}.snippet{font-size:0.8em;opacity:0.6}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}</style>";
                $mh .= "<script>
 var _zim_base = \"$base\";
 function _zim_search() {
@@ -731,7 +765,9 @@ function _zim_search() {
                if(e.title.length==0) {
                   e.title = e.url.replace(/.*\\//,'');
                }
-               o += '<a href=\"' + e.url + '\">' + e.title + '</a><br>';
+               var sn = e.snippet || '';
+               var ico = e.base ? '<img class=hit_icon src=\"/' + e.base + '/-/favicon\">' : '';
+               o += '<div class=hit>' + ico + '<a class=title href=\"' + e.url + '\">' + e.title + '</a>' + (sn ? '<div class=snippet>'+sn+'</div>' : '') + '</div>';
             }
             id.innerHTML = o;
          } else {
@@ -739,7 +775,7 @@ function _zim_search() {
          }
       }
    };
-   var p = { q: q };
+   var p = { q: q, snippets: 50, limit: 100 };
    xhr.open('GET','/rest?'+Object.keys(p).map(function(k){return k+'='+encodeURIComponent(p[k])}).join('&'));
    xhr.send();
 }               
@@ -803,212 +839,8 @@ function _zim_search() {
    exit 0;
 }
 
-sub fnum {
-  return reverse join ',', unpack '(A3)*', reverse $_[0]
+sub fnum3 {  # -- 10000000 -> 10,000,000
+   return reverse join ',', unpack '(A3)*', reverse $_[0]
 }
+
 1;
-__END__
-
-=pod
-
-*** OUTDATED DOCUMENTATION only applies to previous zimHttpServer.pl (no longer valid for ZIM.pm) ***
-
-=head1 NAME
-
-=head1 SYNOPSIS
-
-	url_pointer
-
-	title_pointer
-
-	entry
-
-	cluster_pointer
-
-	cluster_blob
-
-	articleById
-
-	output_article
-
-=head1 DESCRIPTION
-
-=over 2
-
-=item needs
-
-	it need «xz» program for decompress cluster.
-	it use «rm» command.
-	it create files in «/tmp/» directory.
-	it's tested in Ubuntu and Sabayon operating systems.
-
-=item input
-
-	use:
-zim.pl file.zim
-
-	zim.pl can create file.index for search pattern.
-	when create file.index, program work very time; be patient.
-
-=item output
-
-socket connect at localhost:8080
-	open url "localhost:8080" with web browser
-
-	Temporaly it make files into tmp directory for decompress clusters
-/tmp/file_cluster$cluster-pid$$
-	it delete these files immediately.
-
-	To create socket require to fork process.
-	Because the browser connect five socket simultaneously at "localhost:8080" each one ask a diferent url.
-
-	Note: The son process are terminated and they are found as defunct with ps program. I don't know it.
-
-=back
-
-=head1 METHODS
-
-=over 2
-
-=item url_pointer
-
-	L<url_pointer>
-
-=item title_pointer
-
-	L<title_pointer>
-
-=item entry
-
-	L<entry>
-
-=item cluster_pointer
-
-	L<cluster_pointer>
-
-=item cluster_blob
-
-	L<cluster_blob>
-
-=item articleById
-
-	L<articleById>
-
-=item output_article
-
-	L<output_article>
-
-=item debug
-
-	L<debug>
-
-=back
-
-=head2 header
-	%header = (
-		"magicNumber" => ZIM\x04,
-		"version" => ,
-		"uuid" => ,
-		"articleCount" => ,
-		"clusterCount" => ,
-		"urlPtrPos" => ,
-		"titlePtrPos" => ,
-		"clusterPtrPos" => ,
-		"mainPage" => ,
-		"checksumPos" => )
-
-=head2 mime
-
-	@mime = (
-		"txt/html; charset=utf8",
-		"",
-		...)
-
-=head2 url_pointer(article_number)
-
-	article_number is sort by url.
-	return C<pointer> to article number.
-
-=head2 title_pointer(article_number)
-
-	article_number is sort by title.
-	return C<article_number> sort by url.
-
-=head2 entry(article_number)
-
-	article_number is sort by url.
-	load in hash %article the entry.
-	%article = (
-		"number" => article_number,
-		"mimetype" => integer, # see L<mimetype>
-		"parameter_len" => 0, # no used
-		"namespace" => char,
-		"revision" => number,
-	if(mimetype eq 0xFF)
-			"redirect_index" => article_number,
-	else
-			"cluster_number" => cluster_number,
-			"blob_number" => blob_number,
-		"url" => string,
-		"title" => string)
-	
-
-=head2 cluster_pointer(cluster_number)
-
-	return cluster_number_pointer
-
-=head2 cluster_blob(cluster_number, blob_number)
-
-	return data
-
-=head2 articleById(article_number)
-
-	return data
-
-=head2 article(url)
-
-	search the url and return data,
-	or search pattern into file.index and return list of item;
-	and make file.index if not exist.
-
-	main subrutine of subrutines
-
-	example:
-article("/A/wikipedia.html");
-
-	search "/A/wikipedia.html" into file.zim
-	return page
-	the web browser need other files as file.css file.js image.png
-article("/I/favicon");
-
-article("/A/Jordan");
-	no found page named /A/Jordan.
-	This url start with "/A/" and it start to search.
-	It create file.index and search into .zim file,
-	which pattern is "Jordan",
-	and return list of url which are found with pattern.
-
-article("Jordan");
-	no found and return null string.
-
-article("/I/Jordan");
-	no found and return null string.
-
-=head2 debug
-
-...
-
-=head1 LICENSE
-
-This program is free software; you may redistribute it and/or modify it under some terms.
-
-=head1 SEE ALSO
-
-=head1 AUTHORS
-
-Original code by Pedro González.
-Released 4-6-2012.
-yaquitobi@gmail.com
-Comment by Pedro, but I'm not english speaker, excuse me my mistakes.
-
-=cut
