@@ -103,12 +103,18 @@ Once they are extracted, querying those full text indexes is fast.
 
 By default the results are given as JSON.
 
+**Note:** some ZIM files have their fulltext index at `/Z//fulltextIndex/xapian`, in that case manually extract it like this:
+```
+% zim stackoverflow.com_en_all_2019-02.zim x /X//fulltextIndex/xapian --output=stackoverflow.com_en_all_2019-02.fulltext.xapian
+```
+after that you can query with `zim` or the Web GUI:
+
 ## Web Server
 
 The main intent of ZIM files are to provide an entire web-site for off-line operations, like having Wikipedia fully functional 
 but running on a dedicated web-server.
 ```
-% zim wikipedia_en_all_maxi-2019-08.zim server
+% zim wikipedia_en_all_maxi-2019-10.zim server
 == zim web-server 0.0.4 (ZIM 0.0.3), listening on 0.0.0.0:8080
 ```
 
@@ -116,10 +122,17 @@ and then open the browser of your choice `http://127.0.0.1:8080`
 
 **Hint**: You may pre-extract the xapian indexes by querying it via the command-line first:
 ```
-% zim wikipedia_en_all_maxi-2019-08.zim q test
+% zim wikipedia_en_all_maxi-2019-10.zim q test
 (takes a while)
 ```
 so the first query via the browser won't take too long.
+
+### Library Support
+Very early support for multiple ZIM files but one web-server / site is available using `--library=` option:
+```
+zim --library=wikipedia_en_all_maxi-2019-10.zim,wiktionary_en_all_maxi_2020-01.zim,gutenberg_en_all_2018-10.zim server
+```
+and provides you a simple way to switch and search among all ZIM files.
 
 ### RESTful API
 
