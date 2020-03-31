@@ -10,7 +10,7 @@ ZIM files are like ZIP or TAR.GZ files, but optimized to access individual files
 - extract data from ZIM file
 - search files in ZIM file by filename or full-text search (if fts index is included in ZIM file)
 - basic web-server with fulltext search & RESTful full-text search & catalog
-  - multiple ZIM files 
+  - multiple ZIM files aka library support
 
 ## Todo
 - ~~web-server: include search facility~~, included since 0.0.8
