@@ -132,7 +132,7 @@ Very early support for multiple ZIM files but one web-server / site is available
 ```
 zim --library=wikipedia_en_all_maxi-2019-10.zim,wiktionary_en_all_maxi_2020-01.zim,gutenberg_en_all_2018-10.zim server
 ```
-and provides you a simple way to switch and search among all ZIM files.
+and provides you a simple way to switch between and search among all ZIM files in the "library".
 
 ### RESTful API
 
