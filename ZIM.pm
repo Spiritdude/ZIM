@@ -747,26 +747,32 @@ sub processRequest {
 
             if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
                my $mh = "";
-               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#ddd;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}</style>";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#ddd;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}} .blink{animation:blink 1s infinite ease-in-out}</style>";
                $mh .= "<script>
 var _zim_base = \"$base\";
 function _zim_search() {
    var q = document.getElementById('_zim_search_q').value;
    var xhr = new XMLHttpRequest();
-   document.getElementById('_zim_results_hint').innerHTML = 'searching ...';
+
+   var _id = document.getElementById('_zim_results_hint');
+   _id.innerHTML = 'searching ...';
+   _id.classList.toggle('blink',true);
+
    var id = document.getElementById('_zim_results');
    id.innerHTML = '...';
    xhr.onload = function() {
       if(xhr.status >= 200 && xhr.status < 300) {
          //console.log(xhr.responseText);
          var data = JSON.parse(xhr.responseText);
-         console.log(data);
+         //console.log(data);
          if(data.results.hits.length>0)
             id.classList.toggle('active',true);
          var o = '';
          //id.innerHTML = JSON.stringify(data);
          if(data && data.results && data.results.hits) {
-            document.getElementById('_zim_results_hint').innerHTML = data.results.hits.length + ' results';
+            var _id = document.getElementById('_zim_results_hint');
+            _id.innerHTML = data.results.hits.length + ' results';
+            _id.classList.toggle('blink',false);
             for(var e of data.results.hits) {
                if(e.title.length==0) {
                   e.title = e.url.replace(/.*\\//,'');
@@ -788,7 +794,9 @@ function _zim_search() {
             }
             id.innerHTML = o;
          } else {
-            document.getElementById('_zim_results_hint').innerHTML = 'search failed';
+            var _id = document.getElementById('_zim_results_hint');
+            _id.classList.toggle('blink',false);
+            _id.innerHTML = 'search failed';
          }
       }
    };
