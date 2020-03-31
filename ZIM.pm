@@ -482,8 +482,8 @@ sub fts {
    if(1) {
       my $db = Search::Xapian::Database->new($file_xapian); 
       
-      # -- it seems we have to truncate the query
-      $q = substr($q,0,7);    # -- 'microscope' -> 'microsc'
+      # -- it seems we have to truncate the query for some indices (??!!)
+      # $q = substr($q,0,7);    # -- 'microscope' -> 'microsc'
 
       my $enq = $db->enquire($q);
       print "INF: #$$: Xapian Query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
@@ -657,6 +657,11 @@ sub processRequest {
                         $u = $r[$i]->{url};
                      }
                      my $body = $me->article($u);
+                     my $headers = [];
+                     foreach(split(/\n/,$body)) {
+                        push(@{$headers->[$1-1]},$2) if(/<h(\d)[^>]*>([^<]+)<\/h/i);
+                     }
+                     # push(@{$headers->[0]},$r[$i]->{title}) unless($headers->[0]);
                      $body =~ s/<script>[^<]+<\/script>//mg;
                      $body =~ s/<\/?(p|br)>/ /ig;
                      $body =~ s/<[^>]+>//g;
@@ -672,6 +677,7 @@ sub processRequest {
                         }
                      }
                      $r[$i]->{snippet} = $exp;
+                     $r[$i]->{headers} = $headers;
                   }
                }
                $res = { hits => \@r };
@@ -741,7 +747,7 @@ sub processRequest {
 
             if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
                my $mh = "";
-               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#ddd;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00f}.snippet{font-size:0.8em;opacity:0.6}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}</style>";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 10em;background:#ddd;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}</style>";
                $mh .= "<script>
 var _zim_base = \"$base\";
 function _zim_search() {
@@ -765,9 +771,20 @@ function _zim_search() {
                if(e.title.length==0) {
                   e.title = e.url.replace(/.*\\//,'');
                }
-               var sn = e.snippet || '';
+               var sn = e.snippet || ''; 
+               var hd = '';
+               for(var h in e.headers) {
+                  for(var t in e.headers[h]) {
+                     if(hd.length>0)
+                        hd += ' &middot; ';
+                     if(e.headers[h][t])
+                        hd += '<span class=snippet_header_'+h+'>' + e.headers[h][t] + '</span>';
+                  }
+               }
+               if(hd.length>0) 
+                  sn = sn + '<div class=heads>' + hd + '</div>';
                var ico = e.base ? '<img class=hit_icon src=\"/' + e.base + '/-/favicon\">' : '';
-               o += '<div class=hit>' + ico + '<a class=title href=\"' + e.url + '\">' + e.title + '</a>' + (sn ? '<div class=snippet>'+sn+'</div>' : '') + '</div>';
+               o += '<div class=hit><a class=title href=\"' + e.url + '\">' + ico + e.title + '</a>' + (sn ? '<div class=snippet>'+sn+'</div>' : '') + '</div>';
             }
             id.innerHTML = o;
          } else {
