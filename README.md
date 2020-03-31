@@ -12,12 +12,12 @@ ZIM files are like ZIP or TAR.GZ files, but optimized to access individual files
 - basic web-server & RESTful full-text search
  
 ## Todo
-- web-server: include search facility
-- support ZIM libraries (multiple ZIM files):
+- ~~web-server: include search facility~~, included since 0.0.8
+- ~~support ZIM libraries (multiple ZIM files):~~ included since 0.0.8 with `--library=<zim1>,<zim2>,...`
   - adding, removing ZIM files (e.g. adapting `kiwix-tools` XML format)
-  - multiple ZIM files but one web-server
+  - ~~multiple ZIM files but one web-server~~ included since 0.0.8
 - clean up code (remove old code):
-  - make web-server use better socket handling
+  - ~~make web-server use better socket handling~~ resolved since 0.0.7
   - `ZIM.pm` proper documentation for CPAN release
 
 ## Download
