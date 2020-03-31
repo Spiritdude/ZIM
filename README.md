@@ -52,6 +52,7 @@ USAGE zim 0.0.5: [<opts>] <zimfile> <cmd> [<arguments>]
       --case_insens     case-insensitivity, in combination of 'search', and -e with 'article' and 'extract'
         -i                       "         "
       --output=<fname>  define output filename in combination with 'extract'
+      --library=<z1>,<z2>,...    define a library of multiple zim files for 'server' operation (experimental)
       --port=<p>        set port for server (default: 8080)
       --ip=<ip>         set address to bind server (default: 0.0.0.0)
 
