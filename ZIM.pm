@@ -8,7 +8,7 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
-# 2020/03/31: 0.0.8: preliminary 64bit cluster size support to support large fulltext indexes (>4GB)
+# 2020/03/31: 0.0.8: preliminary 64bit cluster size support to support large fulltext indexes (>4GB), improved server() web-gui supporting library (multiple zim files)
 # 2020/03/30: 0.0.7: support large article extraction direct to file (without large memory consumption) for wikipedia.zim xapian indices
 # 2020/03/30: 0.0.6: preliminary support for library (multiple zim) for server()
 # 2020/03/30: 0.0.5: renaming methods: article(url) and articleById(n)
