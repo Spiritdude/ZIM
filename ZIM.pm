@@ -719,7 +719,7 @@ sub processRequest {
             $url =~ s/%(..)/chr(hex($1))/eg;
 
             if($self->{catalog}) {                       # -- dealing with a catalog, determine which entry
-               if($url =~ s/\/([\w\-]+)\//\//) {
+               if($url =~ s/\/([\w\.\-]+)\//\//) {
                   $base = $1;
                   if($self->{catalog}->{$base}) {
                      $me = $self->{catalog}->{$base};
