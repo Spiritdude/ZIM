@@ -42,7 +42,8 @@ sub new {
 
    @{$self->{error}} = ();
 
-   if($arg->{library}) {                       
+   if($arg->{library}) { 
+      # -- create internal catalog with metadata for webgui                   
       foreach my $f (@{$arg->{library}}) {
          my $b = $f; $b =~ s/\.zim$//;
          print "INF: #$$: library: adding $b ($f)\n" if($self->{verbose});
@@ -51,6 +52,7 @@ sub new {
          $me->entry($me->{header}->{mainPage});
          $home = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
          $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
+         $title =~ s/\s\W.*//g; # -- truncate title
          push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header} });
       }
       return $self;

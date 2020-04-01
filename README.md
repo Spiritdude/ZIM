@@ -134,7 +134,7 @@ You may create a `zim.conf` (JSON) like:
    "library": "wikipedia_en_all_mini.zim,wikiquote_en_all_maxi.zim,wiktionary_en_all_maxi_2020-01.zim,wikispecies_en_all_maxi_2020-01.zim"
 }
 ```
-and either launch `zim` in the same directory or reference the configuratoin file:
+and either launch `zim` in the same directory or reference the configuration file:
 ```
 % ls zim.conf
 zim.conf
@@ -142,6 +142,7 @@ zim.conf
 - or - 
 % zim --conf=/some/where/zim.conf
 ```
+**Note**: `--library` is only considered for `server` operation, other commands do not support library yet.
 
 ### RESTful API
 

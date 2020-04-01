@@ -52,7 +52,7 @@ if($arg->{version}) {
 foreach my $fn ("zim.conf",split(/,/,$arg->{conf})) {
    local $/;
    if(open(my $fh,"<",$fn)) {
-      print "INF: #$$: considering <$fn> configuration\n" if($arg->{verbose});
+      print "INF: considering <$fn> configuration\n";
       $_ = <$fh>;
       s/(^|\n)\s*\#[^\n]*\n//mg;           # -- support '#' starting comments
       my $c = eval { return from_json($_); };
