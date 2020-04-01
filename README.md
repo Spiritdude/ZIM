@@ -41,7 +41,7 @@ due the experimental nature of both.
 
 ## Usage
 ```
-USAGE zim 0.0.5: [<opts>] <zimfile> <cmd> [<arguments>]
+USAGE zim 0.0.6: [<opts>] <zimfile> <cmd> [<arguments>]
    options:
       --verbose         increase verbosity
         -v or -vvv         "        "
@@ -55,6 +55,8 @@ USAGE zim 0.0.5: [<opts>] <zimfile> <cmd> [<arguments>]
       --library=<z1>,<z2>,...    define a library of multiple zim files for 'server' operation (experimental)
       --port=<p>        set port for server (default: 8080)
       --ip=<ip>         set address to bind server (default: 0.0.0.0)
+      --conf=<c1>,<c2>,...       define a set of configuration files, default ./zim.conf is considered
+                                    zim.conf is a JSON, and may define all '--[setting]' 
 
    commands:
       info              show info of zim file
@@ -84,7 +86,6 @@ USAGE zim 0.0.5: [<opts>] <zimfile> <cmd> [<arguments>]
       zim test.zim q test           query fts using internal xapian index (if there are such)
       zim test.zim --index=title q test     query fts but only titles
       zim test.zim server           start web-server
-
 ```
 
 ## Full Text Search
