@@ -50,10 +50,14 @@ sub new {
          $self->{catalog}->{$b} = new ZIM({file=>$f});
          my $me = $self->{catalog}->{$b};
          $me->entry($me->{header}->{mainPage});
+         my($home,$title,$icon);
          $home = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
          $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
          $title =~ s/\s\W.*//g; # -- truncate title
-         push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header} });
+         foreach my $i ('/-/favicon','/I/favicon.png') {
+            $icon = "/$b$i", last if($me->article($i));
+         }
+         push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header}, icon => $icon });
       }
       return $self;
    }
@@ -97,9 +101,14 @@ sub new {
 
    my $me = $self;
    $me->entry($me->{header}->{mainPage});
+   my($home,$title,$icon);
    $home = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
    $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
-   push(@{$self->{_catalog}},{ home=>$home, title=>$title, meta=>$me->{header} });
+   foreach my $i ('/-/favicon','/I/favicon.png') {
+      $icon = "/$b$i", last if($me->article($i));
+   }
+   
+   push(@{$self->{_catalog}},{ home=>$home, title=>$title, meta=>$me->{header}, icon => $icon });
 
    return $self;
 }
@@ -705,8 +714,7 @@ sub processRequest {
             
          } else {
             my $me = $self;                              # -- me might point later to catalog entry itself
-            my($base,$home,$title);
-            my(@cat);
+            my $base;
             
             $url =~ s/%(..)/chr(hex($1))/eg;
 
@@ -720,11 +728,11 @@ sub processRequest {
                      $body = "unknown catalog entry";
                   }
                } else {                                  # -- provide overview of items in catalog
-                  $body = "<html><head><title>Catalog</title></head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{font-size:1.5em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
+                  $body = "<html><head><title>Catalog</title></head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{font-size:1.5em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888;overflow:hidden;white-space:nowrap}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c;background:#eef}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
                   foreach my $e (@{$self->{_catalog}}) {
                      my $meta = fnum3($e->{meta}->{articleCount}) . " articles".
                         "<div class=id>$e->{base} (".fnum3(int($e->{meta}->{filesize}/1024/1024))." MiB)</div>";
-                     $body .= "<a href=\"$e->{home}\"><span class=entry><img class=icon src=\"/$e->{base}/-/favicon\"> $e->{title}<div class=meta>$meta</div></span></a>";
+                     $body .= "<a href=\"$e->{home}\"><span class=entry><img class=icon src=\"$e->{icon}\"> $e->{title}<div class=meta>$meta</div></span></a>";
                   }
                   $body .= "</div><div class=footer><a href=\"https://github.com/Spiritdude/ZIM\">zim web-server</a> $::VERSION ($NAME $VERSION)</div></body></html>";
                   $mime = 'text/html';
@@ -856,18 +864,24 @@ function _zim_search() {
             "Keep-Alive: timeout=30",
             "Content-Type: $mime",
             "Content-Length: $sz",
-            "Access-Control-Allow-Headers: *",     # -- CORS, allow XHR to make requests
+            "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+            #"Access-Control-Allow-Headers: DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Origin: *",     # -- CORS, allow XHR to make requests
             @header ? (@header,"") : "",
             $body);
          send($cs, $m, 0) || last;
 
-      } elsif($http_header =~  /^OPTIONS (.+) HTTP\/1.1\r\n/){
+      } elsif($http_header =~  /^(PUT|OPTIONS) (.+) HTTP\/1.1\r\n/){
          my $m = join("\r\n",
             "HTTP/1.1 200 OK",
             "Connection: Keep-Alive",
             "Keep-Alive: timeout=30",
-            "Access-Control-Allow-Headers: *",     # -- CORS, allow XHR to make requests
-            "");
+            "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+            #"Access-Control-Allow-Headers: DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Origin: *",     # -- CORS, allow XHR to make requests
+            "","");
          send($cs, $m, 0) || last;
          
       } else {
