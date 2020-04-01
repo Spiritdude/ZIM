@@ -89,7 +89,7 @@ USAGE zim 0.0.5: [<opts>] <zimfile> <cmd> [<arguments>]
 
 ## Full Text Search
 
-Some ZIM files contain `/X/fulltext/xapian` and `/X/title/xapian` which are full-text indexes in Xapian format, 
+Some ZIM files contain `/X/fulltext/xapian` and `/X/title/xapian`, or alternatively (older) at `/Z//fulltextIndex/xapian` which are full-text indexes in Xapian format, 
 those are extracted once if you use `query` or `q` command first, and may take some time. 
 
 Once they are extracted, querying those full text indexes is fast.
@@ -102,12 +102,6 @@ Once they are extracted, querying those full text indexes is fast.
 ```
 
 By default the results are given as JSON.
-
-**Note:** some ZIM files have their fulltext index at `/Z//fulltextIndex/xapian`, in that case manually extract it like this:
-```
-% zim stackoverflow.com_en_all_2019-02.zim x /X//fulltextIndex/xapian --output=stackoverflow.com_en_all_2019-02.fulltext.xapian
-```
-after that you can query with `zim` or the Web GUI:
 
 ## Web Server
 
