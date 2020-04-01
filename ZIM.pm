@@ -796,6 +796,8 @@ function _zim_search() {
                         hd += ' &middot; ';
                      if(e.headers[h][t])
                         hd += '<span class=snippet_header_'+h+'>' + e.headers[h][t] + '</span>';
+                     if(t>10)
+                        break;
                   }
                }
                if(hd.length>0) 

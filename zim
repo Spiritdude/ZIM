@@ -48,6 +48,28 @@ if($arg->{version}) {
    exit 0;
 }
 
+foreach my $fn ("zim.conf",split(/,/,$arg->{conf})) {
+   local $/;
+   if(open(my $fh,"<",$fn)) {
+      print "INF: #$$: considering <$fn> configuration\n" if($arg->{verbose});
+      $_ = <$fh>;
+      s/(^|\n)\s*\#[^\n]*\n//mg;           # -- support '#' starting comments
+      my $c = eval { return from_json($_); };
+      if($c) {
+         foreach my $k (sort keys %$c) {     # -- merge configuration
+            if($k eq 'library') { 
+               $arg->{$k} .= ( $arg->{k} ? "," : "" ) . $c->{$k};    # -- concat library entries
+            } else {
+               $arg->{$k} = $c->{$k};
+            }
+         }
+      } elsif($@) {
+         print "ERR: $fn: $@\n";
+         exit;
+      }
+   }
+}
+
 if($arg->{library}) {
    my $l = $arg->{library};
    $arg->{library} = [];         # -- bend it ...
@@ -143,6 +165,8 @@ sub help {
       --library=<z1>,<z2>,...    define a library of multiple zim files for 'server' operation (experimental)
       --port=<p>        set port for server (default: $arg->{port})
       --ip=<ip>         set address to bind server (default: $arg->{ip})
+      --conf=<c1>,<c2>,...       define a set of configuration files, default ./zim.conf is considered
+                                    zim.conf is a JSON, and may define all '--[setting]' 
 
    commands:
       info              show info of zim file
