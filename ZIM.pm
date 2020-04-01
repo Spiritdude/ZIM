@@ -471,6 +471,11 @@ sub fts {
       print "INF: #$$: extract /X/fulltext/xapian -> $file->{fulltext}\n";
       $self->article("/X/fulltext/xapian",{dest=>$file->{fulltext}});
       $self->{error} = [];    # -- in case extraction failed
+      if(!-e $file->{fulltext}) {          # -- failed? let's try another url (older)
+         print "INF: #$$: extract /Z//fulltextIndex/xapian -> $file->{fulltext}\n";
+         $self->article("/Z//fulltextIndex/xapian",{dest=>$file->{fulltext}});
+         $self->{error} = [];    # -- in case extraction failed
+      }
    }
    if(!-e $file->{title}) {
       print "INF: #$$: extract /X/title/xapian -> $file->{title}\n";
@@ -478,7 +483,7 @@ sub fts {
       $self->{error} = [];    # -- in case extraction failed
    }
    my $file_xapian = $file->{$opts->{index}||'fulltext'};
-   print "INF: #$$: Xapian Index $file_xapian\n" if($self->{verbose}>1);
+   print "INF: #$$: xapian index $file_xapian\n" if($self->{verbose}>1);
    if(1) {
       my $db = Search::Xapian::Database->new($file_xapian); 
       
@@ -486,7 +491,7 @@ sub fts {
       # $q = substr($q,0,7);    # -- 'microscope' -> 'microsc'
 
       my $enq = $db->enquire($q);
-      print "INF: #$$: Xapian Query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
+      print "INF: #$$: xapian query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
       $opts = $opts || { };
       my @r = $enq->matches($opts->{offset}||0,$opts->{limit}||100);
       my @re;
