@@ -128,6 +128,21 @@ zim --library=wikipedia_en_all_maxi-2019-10.zim,wiktionary_en_all_maxi_2020-01.z
 ```
 and provides you a simple way to switch between and search among all ZIM files in the "library".
 
+You may create a `zim.conf` (JSON) like:
+```
+{ 
+   "library": "wikipedia_en_all_mini.zim,wikiquote_en_all_maxi.zim,wiktionary_en_all_maxi_2020-01.zim,wikispecies_en_all_maxi_2020-01.zim"
+}
+```
+and either launch `zim` in the same directory or reference the configuratoin file:
+```
+% ls zim.conf
+zim.conf
+% zim server
+- or - 
+% zim --conf=/some/where/zim.conf
+```
+
 ### RESTful API
 
 The endpoint is `http://127.0.0.1:8080/rest` and takes `GET` request arguments:
