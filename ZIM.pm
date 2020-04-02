@@ -52,7 +52,7 @@ sub new {
          my($home,$title,$icon);
          $home = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
          $title = $me->article("/M/Title") || $me->article("/M/Creator") || $b;
-         $title =~ s/([\w ]{12,})\s[\W\S].*/$1/;   # -- truncate title
+         $title =~ s/([\w ]{12,24})\s[\W\S].*/$1/;   # -- truncate title sensible
          foreach my $i ('/-/favicon','/I/favicon.png') {
             $icon = "/$b$i", last if($me->article($i));
          }
@@ -731,7 +731,7 @@ sub processRequest {
                   }
                } else {                                  # -- provide overview of items in catalog
                   $body = "<html><head><title>Catalog</title><link href=\"data:image/x-png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAABUAAAAVAB++UihAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAHFSURBVFiF7Vavq8JgFL3bHuiwLehXLKJgXrGKImIy+gdYDWKyDNvCkn+DGMRgWrFrEsFkXNYJCgoWmeclRd/ew/1yM7wDt9zv3nvO7rZ7P46IQBGCj5L88wRIkkS6rtPhcKDRaESiKIYiAjfTNA2P6HQ6eDx/hz11IJlMPilLpVJveF477moKhQJOpxMAYLfbIZfLvb0D9NPBGEO1WoUkSWGQg7upiAqf9RtGgS8/yY1Gg0qlkuN4RVHINE2b3/MH1O/34QbZbNZWw1cHxuMxrdfrP88TiQSpqkrxeJwMw6Dtdvtr3HsmHM9jMpkAAPb7PfL5vLM5EJT1ej0AgGVZqNVqzgdREFapVGBZFgBAUZRX8cGSM8ZgmiYAYDqdguf58ARwHAdd1wEAm80GjDEnecEJaLVa9/deLped5gVDnslk7ptU0zQ3uf7JBUHAbDYDAKxWK8RisXAFtNttAMDlcoEsy27z/ZGn02kcj0cAgKqqXmr4E3CbdoZhQBTFcAUUi8X7oqnX655q+LoRLZdLkmWZzuczDYfDl/GDwYDm87nN70m5IAiuVjEANJtNWx3P6/h6vVK323WVs1gsbL7/S2nkAr4BqNINAhXMUgwAAAAASUVORK5CYII=\" rel=\"shortcut icon\" type=\"image/x-png\">
-</head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{vertical-align:middle;height:1.5em}a,a:visited{color:#444;text-decoration:none}.entry{font-size:1.5em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888;overflow:hidden;white-space:nowrap}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c;background:#eef}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
+</head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#ddd;margin:1.5em 3em}.icon{float:right;vertical-align:middle;height:2em}a,a:visited{color:#444;text-decoration:none}.entry{text-align:left;font-size:1.4em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888;overflow:hidden;white-space:nowrap}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c;background:#eef}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5;margin:0.3em 0}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
                   foreach my $e (@{$self->{_catalog}}) {
                      my $meta = fnum3($e->{meta}->{articleCount}) . " articles".
                         "<div class=id>$e->{base} (".fnum3(int($e->{meta}->{filesize}/1024/1024))." MiB)</div>";
@@ -781,6 +781,7 @@ function _zim_search() {
    _id.classList.toggle('blink',true);
 
    var id = document.getElementById('_zim_results');
+   id.classList.toggle('active',false);
    id.innerHTML = '...';
    xhr.onload = function() {
       if(xhr.status >= 200 && xhr.status < 300) {
