@@ -765,7 +765,7 @@ sub processRequest {
 
             if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
                my $mh = "";
-               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}} .blink{animation:blink 1s infinite ease-in-out}</style>";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_header.small{font-size:0.8em;}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}} .blink{animation:blink 1s infinite ease-in-out}</style>";
                $mh .= "<script>
 var _zim_base = \"$base\";
 function _zim_search() {
@@ -832,8 +832,9 @@ function _zim_search() {
    xhr.send();
 }               
 </script>";
-               $mh .= "<div class=zim_header>";
-               $mh .= "<a href=\"/\"><span class=zim_entry>Home</span></a>";
+               my $xtr = @{$self->{_catalog}} > 6 ? "small" : "";
+               $mh .= "<div class=\"zim_header $xtr\">";
+               $mh .= "<a href=\"/\"><span class=zim_entry>Home</span></a>" if($base);
                if($base) {
                   if($self->{catalog}) {
                      foreach my $e (@{$self->{_catalog}}) {
@@ -843,6 +844,7 @@ function _zim_search() {
                   }
                }
                unless($self->{no_search}) {
+                  $mh .= "&nbsp;<img style=\"height:1em;opacity:0.5;vertical-align:middle\" src=\"data:image/x-png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAfCAYAAADwbH0HAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAABUAAAAVAB++UihAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAALISURBVEiJvZdNaxNBGMd/eVsKgbQqgZgXkoOtIK2ol0jZHnIRc/DQgl9BPTWR4ifwIgiK19Iv4G0Jgm8t6KWSYGlpD9Xira4bGltCsKWRxvGQbJlO87KblP7hOfxnZ+Y3z+yzs7seeusKMA3cAeKt8AA/W/EBMIAtB3M50o3WpMJhLAK3BgH6gBdAwwXUjgbwCvD3gngUHwJeA3flRq/Xy+TkJOl0mlgsBoBpmpRKJZaXl2k0Guq8i8B9oOo007dyBpqmidnZWWFZluikcrks8vm80DRNzf6jk8wBnssDE4mEWF1d7QhUtba2JpLJpAp/2Qs6gXRPE4mEME3TMdSWZVkilUqp9/xmN/AbeXtXVlZcQ+XMh4aGZPi7TtCUvD25XK5vqK25uTl1y6+2A+ftDj6fr2shOdXOzo7w+/0y+Ek78HEl67o+MNRWJpNRD5cT8gJJ2+i63q0OXGlqakq2qXbgqG3sw+EsFI1GT9h24IBtAoGAer1vaZomW3+LdQJcto1lWWcGNk1TthbwTwUf91hfXz8zsDLXr3Z9ntKqvmAwKA4ODgau6MPDQxEKheSqfqZCvUDBNvv7+8zPzw+c7cLCArVaTW4y2vXzABv26sLhsKhUKn1nu7u7KyKRiJztJkphybondRS6rot6ve4aenR0JLLZrHpcTvfaoffygGw2K6rVqmNorVYTExMTKnSJ0x8bp3QJ+CEPHB0dFYZh9IQWCgUxNjamQv8C1zvB1NVca2UelxvHx8eZmZkhnU4Tj8fxeDxsb29TLBYxDKPbY7gFZOjwOKm6DBSV1buJP4r/1prTkTQgB1RcAH8Dj4GLwCfl2nc3cIBh4AHNV2e9DaxO8wvjITAijQsCnwfJXJYfiAFp4DbNOuj2VgkBXxT4JhDpB+5Ww5yulw0gfB7wEaCkwJfOA2zDv0rgvfMCA1yg+RO4Bzz6D/yDum4lIeaUAAAAAElFTkSuQmCC\">";
                   $mh .= "<input class=zim_search id=_zim_search_q onchange=\"_zim_search()\" default=\"search\"><span id=_zim_results_hint></span>";
                }
                $mh .= "</div>";
