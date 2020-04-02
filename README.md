@@ -132,7 +132,12 @@ and provides you a simple way to switch between and search among all ZIM files i
 You may create a `zim.conf` (JSON) like:
 ```
 { 
-   "library": "wikipedia_en_all_mini.zim,wikiquote_en_all_maxi.zim,wiktionary_en_all_maxi_2020-01.zim,wikispecies_en_all_maxi_2020-01.zim"
+   "library": [
+      "wikipedia_en_all_mini.zim",
+      "wikiquote_en_all_maxi.zim",
+      "wiktionary_en_all_maxi_2020-01.zim",
+      "wikispecies_en_all_maxi_2020-01.zim"
+   ]
 }
 ```
 and either launch `zim` in the same directory or reference the configuration file:
@@ -284,5 +289,6 @@ $z->server({ ip => '127.0.0.1', port => 8088 });
 ```
 
 ## See Also
-- [kiwix-tools](https://github.com/kiwix/kiwix-tools): official implementation with C++
+- [libzim/zim-tools](https://github.com/openzim/zim-tools): `zimbench`, `zimcheck`, `zimdump`, `zimdiff`, `zimsearch`, `zimpatch` and `zimsplit`
+- [kiwix-tools](https://github.com/kiwix/kiwix-tools): `kiwix-serve` provides web-gui
 

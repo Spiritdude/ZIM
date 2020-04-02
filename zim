@@ -58,6 +58,9 @@ foreach my $fn ("zim.conf",split(/,/,$arg->{conf})) {
       my $c = eval { return from_json($_); };
       if($c) {
          foreach my $k (sort keys %$c) {     # -- merge configuration
+            if(ref($c->{$k})eq'ARRAY') {   
+               $c->{$k} = join(",",@{$c->{$k}});
+            }
             if($k eq 'library') { 
                $arg->{$k} .= ( $arg->{k} ? "," : "" ) . $c->{$k};    # -- concat library entries
             } else {
