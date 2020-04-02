@@ -283,3 +283,6 @@ foreach my $e (@$rs) {
 $z->server({ ip => '127.0.0.1', port => 8088 });
 ```
 
+## See Also
+- [kiwix-tools](https://github.com/kiwix/kiwix-tools): official implementation with C++
+
