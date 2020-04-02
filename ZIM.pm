@@ -832,7 +832,7 @@ function _zim_search() {
    xhr.send();
 }               
 </script>";
-               my $xtr = @{$self->{_catalog}} > 6 ? "small" : "";
+               my $xtr = $base && @{$self->{_catalog}} > 6 ? "small" : "";
                $mh .= "<div class=\"zim_header $xtr\">";
                $mh .= "<a href=\"/\"><span class=zim_entry>Home</span></a>" if($base);
                if($base) {
