@@ -45,7 +45,7 @@ sub new {
       # -- create internal catalog with metadata for webgui                   
       foreach my $f (@{$arg->{library}}) {
          my $b = $f; $b =~ s/\.zim$//;
-         print "INF: #$$: library: adding $b ($f)\n" if($self->{verbose});
+         print "INF: library: adding $b ($f)\n" if($self->{verbose});
          $self->{catalog}->{$b} = new ZIM({file=>$f});
          my $me = $self->{catalog}->{$b};
          $me->entry($me->{header}->{mainPage});
