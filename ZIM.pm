@@ -32,7 +32,6 @@ sub new {
    my($class) = shift;
    my $self = { };
    my $arg = shift;
-   no strict;
    
    bless($self,$class);
 
@@ -52,8 +51,8 @@ sub new {
          $me->entry($me->{header}->{mainPage});
          my($home,$title,$icon);
          $home = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
-         $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
-         $title =~ s/\s\W.*//g; # -- truncate title
+         $title = $me->article("/M/Title") || $me->article("/M/Creator") || $b;
+         $title =~ s/([\w ]{12,})\s[\W\S].*/$1/;   # -- truncate title
          foreach my $i ('/-/favicon','/I/favicon.png') {
             $icon = "/$b$i", last if($me->article($i));
          }
@@ -100,10 +99,11 @@ sub new {
    $/ = "\n";
 
    my $me = $self;
+   my $b = $arg->{file}; $b =~ s/\.zim$//;
    $me->entry($me->{header}->{mainPage});
    my($home,$title,$icon);
    $home = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
-   $title = $me->article("/M/Title") || $me->article("/M/Creator") || $e;
+   $title = $me->article("/M/Title") || $me->article("/M/Creator") || $b;
    foreach my $i ('/-/favicon','/I/favicon.png') {
       $icon = "/$b$i", last if($me->article($i));
    }
