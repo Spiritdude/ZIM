@@ -7,7 +7,7 @@ our $APPNAME = 'zim';
 our $VERSION = '0.0.6';
 #
 # History:
-# 2020/04/01: 0.0.6: --conf=<c1>,<c2>,... one or multiple conf files (JSON), default ./zim.conf is considered
+# 2020/04/01: 0.0.6: --conf=<c1>,<c2>,... one or multiple conf files (JSON)
 # 2020/03/30: 0.0.5: --output=<fname> added, early support for --library=<zim1>,<zim2>,...
 # 2020/03/29: 0.0.4: 'server' enabled, very experimental web-server functionality
 # 2020/03/29: 0.0.3: 'extract' or 'x' to extract files
@@ -49,7 +49,7 @@ if($arg->{version}) {
    exit 0;
 }
 
-foreach my $fn ("zim.conf",split(/,/,$arg->{conf})) {
+foreach my $fn (split(/,/,$arg->{conf})) {
    local $/;
    if(open(my $fh,"<",$fn)) {
       print "INF: considering <$fn> configuration\n";
@@ -169,7 +169,7 @@ sub help {
       --library=<z1>,<z2>,...    define a library of multiple zim files for 'server' operation (experimental)
       --port=<p>        set port for server (default: $arg->{port})
       --ip=<ip>         set address to bind server (default: $arg->{ip})
-      --conf=<c1>,<c2>,...       define a set of configuration files (JSON), default ./zim.conf is considered
+      --conf=<c1>,<c2>,...       define a set of configuration files (JSON)
                                  may contain all --key=value => \"key\": \"value\"
 
    commands:

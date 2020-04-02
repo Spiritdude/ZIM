@@ -55,7 +55,7 @@ USAGE zim 0.0.6: [<opts>] <zimfile> <cmd> [<arguments>]
       --library=<z1>,<z2>,...    define a library of multiple zim files for 'server' operation (experimental)
       --port=<p>        set port for server (default: 8080)
       --ip=<ip>         set address to bind server (default: 0.0.0.0)
-      --conf=<c1>,<c2>,...       define a set of configuration files (JSON), default ./zim.conf is considered
+      --conf=<c1>,<c2>,...       define a set of configuration files (JSON)
                                  may contain all --key=value => \"key\": \"value\"
 
    commands:
@@ -140,11 +140,11 @@ You may create a `zim.conf` (JSON) like:
    ]
 }
 ```
-and either launch `zim` in the same directory or reference the configuration file:
+and reference the configuration file with `--conf=`:
 ```
 % ls zim.conf
 zim.conf
-% zim server
+% zim --conf=zim.conf server
 - or - 
 % zim --conf=/some/where/zim.conf
 ```
