@@ -605,7 +605,9 @@ sub processRequest {
       open($fh,"<",$self->{file});
       $self->{fh} = $fh;
    }
-
+   
+   # $cs->autoflush(1);
+   
    while(1) {                # -- keep-alive operation (exit only if we fail to send)
       my $http_header;
 
@@ -617,7 +619,7 @@ sub processRequest {
       }
 
       # -- processing request
-      if($http_header =~  /^GET (.+) HTTP\/1.1\r\n/){
+      if($http_header =~  /^GET (.+) HTTP\/1\./){
          # -- Request-Line Request HTTP-message
          #    ("OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "CONNECT", "$token+");
          my $url = $1;
@@ -865,20 +867,19 @@ function _zim_search() {
             "Content-Type: $mime",
             "Content-Length: $sz",
             "Access-Control-Allow-Methods: GET, POST, OPTIONS",
-            #"Access-Control-Allow-Headers: DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range",
             "Access-Control-Allow-Headers: *",
             "Access-Control-Allow-Origin: *",     # -- CORS, allow XHR to make requests
             @header ? (@header,"") : "",
             $body);
          send($cs, $m, 0) || last;
 
-      } elsif($http_header =~  /^(PUT|OPTIONS) (.+) HTTP\/1.1\r\n/){
+      } elsif($http_header =~  /^(PUT|OPTIONS) (.+) HTTP\/1\./){
          my $m = join("\r\n",
             "HTTP/1.1 200 OK",
             "Connection: Keep-Alive",
             "Keep-Alive: timeout=30",
+            "Content-Length: 0",
             "Access-Control-Allow-Methods: GET, POST, OPTIONS",
-            #"Access-Control-Allow-Headers: DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range",
             "Access-Control-Allow-Headers: *",
             "Access-Control-Allow-Origin: *",     # -- CORS, allow XHR to make requests
             "","");
