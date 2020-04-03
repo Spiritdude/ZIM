@@ -146,7 +146,7 @@ and reference the configuration file with `--conf=`:
 zim.conf
 % zim --conf=zim.conf server
 - or - 
-% zim --conf=/some/where/zim.conf
+% zim --conf=/some/where/zim.conf server
 ```
 **Note**: `--library` is only considered for `server` operation, other commands do not support library yet.
 
