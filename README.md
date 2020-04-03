@@ -5,7 +5,7 @@ ZIM files are like ZIP or TAR.GZ files, but optimized to access individual files
 
 **NOTE: The package is highly experimental and barely works, and API and notions are subject of changes.**
 
-## Current State (zim 0.0.6 / ZIM.pm 0.0.8)
+## Current State (zim 0.0.6 / ZIM.pm 0.0.9)
 - listing metadata of ZIM file
 - extract data from ZIM file
 - search files in ZIM file by filename or full-text search (if fts index is included in ZIM file)

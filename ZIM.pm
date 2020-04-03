@@ -8,6 +8,7 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/04/03: 0.0.9: adding url2id cache, fixing file-not-found for server() library operation
 # 2020/03/31: 0.0.8: preliminary 64bit cluster size support to support large fulltext indexes (>4GB), improved server() web-gui supporting library (multiple zim files)
 # 2020/03/30: 0.0.7: support large article extraction direct to file (without large memory consumption) for wikipedia.zim xapian indices
 # 2020/03/30: 0.0.6: preliminary support for library (multiple zim) for server()
@@ -18,7 +19,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.8';
+our $VERSION = '0.0.9';
 
 use strict;
 use Search::Xapian;
@@ -120,7 +121,10 @@ sub info {
 
 sub error {
    my $self = shift;
-   return join("\n",@{$self->{error}});
+   my $clear = shift;
+   my $s = join("\n",@{$self->{error}});
+   $self->{error} = [] if($clear);
+   return $s;
 }
 
 # -- read ARTICLE NUMBER (sort by url) into URL POINTER LIST
@@ -355,17 +359,19 @@ sub cluster_blob {
 #    return DATA
 sub articleById {
    my $self = shift;
-   my $articleNumber = shift;
+   my $an = shift;
    my $opts = shift;
-   print "INF: #$$: articleById: #$articleNumber\n" if($self->{verbose}>1);
-   while(1) {
-      my $p = $self->entry($articleNumber);
+
+   print "INF: #$$: articleById: #$an\n" if($self->{verbose}>1);
+
+   while(1) {     # -- resolve redirects 
+      my $p = $self->entry($an);
       #print to_json($self->{article},{pretty=>1,canonical=>1});
-      push(@{$self->{error}},"article not found #$articleNumber"), return '' if($p<0);
+      push(@{$self->{error}},"article not found #$an"), return '' if($p<0);
       if(defined $self->{article}->{"redirect_index"}) {
-         $articleNumber = $self->{article}->{"redirect_index"};
+         $an = $self->{article}->{"redirect_index"};
       } else {
-         return $opts && $opts->{metadataOnly} ? 
+         return $opts && $opts->{metadata} ? 
             $self->{article} : 
             $self->cluster_blob($self->{article}->{"cluster_number"}, $self->{article}->{"blob_number"}, $opts);
          last;
@@ -386,37 +392,42 @@ sub article {
    if(!$url) {    # -- no url provided, then display mainPage
       return $self->articleById($self->{header}->{mainPage},$opts);
    }
-   while(1) {     # -- simple binary search
-      $an = int(($max+$min)/2);
-      my $p = $self->entry($an,$opts);
-      push(@{$self->{error}},"article <$url> not found"), return '' if($p<0);
-      if("/$self->{article}->{namespace}/$self->{article}->{url}" gt "$url") {
-         $max = $an-1;
-      } elsif("/$self->{article}->{namespace}/$self->{article}->{url}" lt "$url") {
-         $min = $an+1;
-      } else {
-         last;
-      }
-      # -- binary search (above) failed: we need to create an index, and fetch the title to compare
-   	if(0 && $max < $min){
-         $self->{article} = undef;
-         $self->{article}->{url} = "pattern=$url";
-         $self->{article}->{namespace} = "SEARCH";
-         return "", unless $url =~ /^\/A/;
-         # ($url) = grep {length($_)>1} split(/[\/\.\s]/, $url);
-         $url =~ s#/A/##;
-         my $m;
-         foreach my $f ($self->index($url)) {
-            print "INF: #$$: > $_" if($self->{verbose});
-            $m .= "<a href=\"$_\">$_</a><br/>\n";
+   if(defined $self->{_url2id_cache}->{$url}) {
+      $an = $self->{_url2id_cache}->{$url};
+   } else {
+      while(1) {     # -- simple binary search
+         $an = int(($max+$min)/2);
+         my $p = $self->entry($an,$opts);
+         push(@{$self->{error}},"article <$url> not found"), return '' if($p<0);
+         if("/$self->{article}->{namespace}/$self->{article}->{url}" gt "$url") {
+            $max = $an-1;
+         } elsif("/$self->{article}->{namespace}/$self->{article}->{url}" lt "$url") {
+            $min = $an+1;
+         } else {
+            last;
          }
-         $self->{article}->{mimetype} = 0; # need for Content-Type: text/html; charset=utf-8
-         return $m;
+         # -- binary search (above) failed: we need to create an index, and fetch the title to compare
+      	if(0 && $max < $min){
+            $self->{article} = undef;
+            $self->{article}->{url} = "pattern=$url";
+            $self->{article}->{namespace} = "SEARCH";
+            return "", unless $url =~ /^\/A/;
+            # ($url) = grep {length($_)>1} split(/[\/\.\s]/, $url);
+            $url =~ s#/A/##;
+            my $m;
+            foreach my $f ($self->index($url)) {
+               print "INF: #$$: > $_" if($self->{verbose});
+               $m .= "<a href=\"$_\">$_</a><br/>\n";
+            }
+            $self->{article}->{mimetype} = 0; # need for Content-Type: text/html; charset=utf-8
+            return $m;
+         }
+         if($max < $min) {
+            push(@{$self->{error}},"'$url' not found");
+            return '';
+         }
       }
-      if($max < $min) {
-         push(@{$self->{error}},"'$url' not found");
-         return '';
-      }
+      $self->{_url2id_cache}->{$url} = $an;   
    }
    return $self->articleById($an,$opts);
 }
@@ -433,8 +444,10 @@ sub make_index {
       open(INDEX, ">$file");
       for(my $n = 0; $n<$self->{header}->{"articleCount"}; $n++) {
          $self->entry($n);
-         print INDEX "/$self->{article}->{namespace}/$self->{article}->{url}\n";
+         my $url = "/$self->{article}->{namespace}/$self->{article}->{url}";
+         print INDEX "$url\n";
          print "\r$n" if($self->{verbose} && ($n%100) == 0);
+         $self->{_url2id_cache}->{$url} = $n;
       }
    	print "\n" if($self->{verbose});
    	$| = 0;
@@ -453,16 +466,19 @@ sub index {
    
    $self->make_index();
    
-   # -- search index
+   # -- list or search index
    print "INF: #$$: searching '$url' in $file\n" if($self->{verbose});
+
+   my $n = 0;
    open(INDEX, "$file");
    while(<INDEX>){
       chop;
       print "INF: #$$: > $_\n" if($self->{verbose});
-      if($url) {
+      if(defined $url) {
          push(@r,$_) if($self->{case_insens} && /$url/i || /$url/);
       } else {
          push(@r,$_);
+         $self->{_url2id_cache}->{$_} = $n++;
       }
    }
    close(INDEX);
@@ -481,17 +497,17 @@ sub fts {
    if(!-e $file->{fulltext}) {
       print "INF: #$$: extract /X/fulltext/xapian -> $file->{fulltext}\n";
       $self->article("/X/fulltext/xapian",{dest=>$file->{fulltext}});
-      $self->{error} = [];    # -- in case extraction failed
+      $self->error(1);    # -- in case extraction failed
       if(!-e $file->{fulltext}) {          # -- failed? let's try another url (older)
          print "INF: #$$: extract /Z//fulltextIndex/xapian -> $file->{fulltext}\n";
          $self->article("/Z//fulltextIndex/xapian",{dest=>$file->{fulltext}});
-         $self->{error} = [];    # -- in case extraction failed
+         $self->error(1);    # -- in case extraction failed
       }
    }
    if(!-e $file->{title}) {
       print "INF: #$$: extract /X/title/xapian -> $file->{title}\n";
       $self->article("/X/title/xapian",{dest=>$file->{title}});
-      $self->{error} = [];    # -- in case extraction failed
+      $self->error(1);    # -- in case extraction failed
    }
    my $file_xapian = $file->{$opts->{index}||'fulltext'};
    print "INF: #$$: xapian index $file_xapian\n" if($self->{verbose}>1);
@@ -509,7 +525,7 @@ sub fts {
       foreach my $m (@r) {
          my $doc = $m->get_document();
          my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, url => "/".$doc->get_data() };
-         $self->article($e->{url},{metadataOnly=>1});
+         $self->article($e->{url},{metadata=>1});
          #foreach my $k (keys %{$self->{article}}) {
          foreach my $k (qw(title revision number namespace mimetype)) {
             $e->{$k} = $self->{article}->{$k};
@@ -730,7 +746,7 @@ sub processRequest {
                      $body = "unknown catalog entry";
                   }
                } else {                                  # -- provide overview of items in catalog
-                  $body = "<html><head><title>Catalog</title><link href=\"data:image/x-png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAABUAAAAVAB++UihAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAHFSURBVFiF7Vavq8JgFL3bHuiwLehXLKJgXrGKImIy+gdYDWKyDNvCkn+DGMRgWrFrEsFkXNYJCgoWmeclRd/ew/1yM7wDt9zv3nvO7rZ7P46IQBGCj5L88wRIkkS6rtPhcKDRaESiKIYiAjfTNA2P6HQ6eDx/hz11IJlMPilLpVJveF477moKhQJOpxMAYLfbIZfLvb0D9NPBGEO1WoUkSWGQg7upiAqf9RtGgS8/yY1Gg0qlkuN4RVHINE2b3/MH1O/34QbZbNZWw1cHxuMxrdfrP88TiQSpqkrxeJwMw6Dtdvtr3HsmHM9jMpkAAPb7PfL5vLM5EJT1ej0AgGVZqNVqzgdREFapVGBZFgBAUZRX8cGSM8ZgmiYAYDqdguf58ARwHAdd1wEAm80GjDEnecEJaLVa9/deLped5gVDnslk7ptU0zQ3uf7JBUHAbDYDAKxWK8RisXAFtNttAMDlcoEsy27z/ZGn02kcj0cAgKqqXmr4E3CbdoZhQBTFcAUUi8X7oqnX655q+LoRLZdLkmWZzuczDYfDl/GDwYDm87nN70m5IAiuVjEANJtNWx3P6/h6vVK323WVs1gsbL7/S2nkAr4BqNINAhXMUgwAAAAASUVORK5CYII=\" rel=\"shortcut icon\" type=\"image/x-png\">
+                  $body = "<html><head><title>".($self->{title}?$self->{title}:"ZIM Catalog")."</title><link href=\"data:image/x-png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAABUAAAAVAB++UihAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAHFSURBVFiF7Vavq8JgFL3bHuiwLehXLKJgXrGKImIy+gdYDWKyDNvCkn+DGMRgWrFrEsFkXNYJCgoWmeclRd/ew/1yM7wDt9zv3nvO7rZ7P46IQBGCj5L88wRIkkS6rtPhcKDRaESiKIYiAjfTNA2P6HQ6eDx/hz11IJlMPilLpVJveF477moKhQJOpxMAYLfbIZfLvb0D9NPBGEO1WoUkSWGQg7upiAqf9RtGgS8/yY1Gg0qlkuN4RVHINE2b3/MH1O/34QbZbNZWw1cHxuMxrdfrP88TiQSpqkrxeJwMw6Dtdvtr3HsmHM9jMpkAAPb7PfL5vLM5EJT1ej0AgGVZqNVqzgdREFapVGBZFgBAUZRX8cGSM8ZgmiYAYDqdguf58ARwHAdd1wEAm80GjDEnecEJaLVa9/deLped5gVDnslk7ptU0zQ3uf7JBUHAbDYDAKxWK8RisXAFtNttAMDlcoEsy27z/ZGn02kcj0cAgKqqXmr4E3CbdoZhQBTFcAUUi8X7oqnX655q+LoRLZdLkmWZzuczDYfDl/GDwYDm87nN70m5IAiuVjEANJtNWx3P6/h6vVK323WVs1gsbL7/S2nkAr4BqNINAhXMUgwAAAAASUVORK5CYII=\" rel=\"shortcut icon\" type=\"image/x-png\">
 </head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#eee;margin:1.5em 3em}.icon{float:right;vertical-align:middle;height:2em}a,a:visited{color:#444;text-decoration:none}.entry{text-align:left;font-size:1.4em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888;overflow:hidden;white-space:nowrap}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c;background:#eef}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5;margin:0.3em 0}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}</style><body><div class=catalog>";
                   foreach my $e (@{$self->{_catalog}}) {
                      my $meta = fnum3($e->{meta}->{articleCount}) . " articles".
@@ -852,13 +868,12 @@ function _zim_search() {
                $body =~ s#<body([^>]*)>#<body$1>$mh#i;
             }
             
-            if($self->error()) {
+            if($me->error()) {
                $status = 404;
                $body = "<html><head><title>404 file not found</title></head><body><h1>404 file not found</h1>"
-                  .$self->error()
+                  .$me->error(1)
                   ."</body></html>";
                $mime = 'text/html';
-               $self->{error} = [];
             }
          }
 
