@@ -850,14 +850,23 @@ function _zim_search() {
    xhr.send();
 }               
 </script>";
-               my $xtr = $base && @{$self->{_catalog}} > 6 ? "small" : "";
+               my $xtr = ''; #$base && @{$self->{_catalog}} > 6 ? "small" : "";
                $mh .= "<div class=\"zim_header $xtr\">";
                $mh .= "<a href=\"/\"><span class=zim_entry>&#127968;</span></a>"; # if($base);
                if($base) {
                   if($self->{catalog}) {
-                     foreach my $e (@{$self->{_catalog}}) {
-                        my $s = $e->{base} eq $base ? "selected" : "";
-                        $mh .= "<a href=\"$e->{home}\"><span class=\"zim_entry $s\">$e->{title}</span></a>";
+                     if(@{$self->{_catalog}}<=6) {
+                        foreach my $e (@{$self->{_catalog}}) {
+                           my $s = $e->{base} eq $base ? "selected" : "";
+                           $mh .= "<a href=\"$e->{home}\"><span class=\"zim_entry $s\">$e->{title}</span></a>";
+                        }
+                     } else {
+                        $mh .= "<select id=_zim_select name=zim_select onchange=\"document.location=document.getElementById('_zim_select').value\">";
+                        foreach my $e (@{$self->{_catalog}}) {
+                           my $s = $e->{base} eq $base ? "selected" : "";
+                           $mh .= "<option value=\"$e->{home}\" $s>$e->{title}</option>";
+                        }
+                        $mh .= "</select>";
                      }
                   }
                }
