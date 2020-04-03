@@ -834,7 +834,7 @@ function _zim_search() {
 </script>";
                my $xtr = $base && @{$self->{_catalog}} > 6 ? "small" : "";
                $mh .= "<div class=\"zim_header $xtr\">";
-               $mh .= "<a href=\"/\"><span class=zim_entry>Home</span></a>" if($base);
+               $mh .= "<a href=\"/\"><span class=zim_entry>&#127968;</span></a>"; # if($base);
                if($base) {
                   if($self->{catalog}) {
                      foreach my $e (@{$self->{_catalog}}) {
@@ -849,7 +849,7 @@ function _zim_search() {
                }
                $mh .= "</div>";
                $mh .= "<div id=_zim_results class=zim_results></div>";
-               $body =~ s#<body([^>]*)>#<body$1>$mh#;
+               $body =~ s#<body([^>]*)>#<body$1>$mh#i;
             }
             
             if($self->error()) {
