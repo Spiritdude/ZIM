@@ -57,6 +57,7 @@ sub new {
          foreach my $i ('/-/favicon','/I/favicon.png') {
             $icon = "/$b$i", last if($me->article($i));
          }
+         $me->error(1);    # -- clear error if favicon(s) are not found
          push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header}, icon => $icon });
       }
       return $self;
@@ -108,6 +109,7 @@ sub new {
    foreach my $i ('/-/favicon','/I/favicon.png') {
       $icon = "/$b$i", last if($me->article($i));
    }
+   $self->error(1);     # -- clear error if favicon(s) are not found
    
    push(@{$self->{_catalog}},{ home=>$home, title=>$title, meta=>$me->{header}, icon => $icon });
 
@@ -891,7 +893,7 @@ function _zim_search() {
             @header ? (@header,"") : "",
             $body);
          send($cs, $m, 0) || last;
-
+         
       } elsif($http_header =~  /^(PUT|OPTIONS) (.+) HTTP\/1\./){
          my $m = join("\r\n",
             "HTTP/1.1 200 OK",
