@@ -189,8 +189,6 @@ sub help {
          s <q>              \"                  \"
       article [<u>..]   output article content, optionally use -e and -i
          a [<u>..]          \"                  \"
-      meta [<u>..]      output metadata of article
-         m [<u>..]          \"          \"
       extract [<u>..]   extract article content to file, optionally use -e and -i
          x [<u>..]          \"                  \"
       query <q>         query internal xapian indices (fts or title), use --index=title to switch
