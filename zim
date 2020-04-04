@@ -4,9 +4,10 @@
 #  written by Rene K. Mueller https://github.com/Spiritdude
 #
 our $APPNAME = 'zim';
-our $VERSION = '0.0.6';
+our $VERSION = '0.0.7';
 #
 # History:
+# 2020/04/04: 0.0.7: new command meta, which only output metadata of entry/ies
 # 2020/04/01: 0.0.6: --conf=<c1>,<c2>,... one or multiple conf files (JSON)
 # 2020/03/30: 0.0.5: --output=<fname> added, early support for --library=<zim1>,<zim2>,...
 # 2020/03/29: 0.0.4: 'server' enabled, very experimental web-server functionality
@@ -127,6 +128,17 @@ if($cmd eq 'info' || $cmd eq 'i') {
       }
    }
 
+} elsif($cmd eq 'meta' || $cmd eq 'm') {
+   foreach my $u (@ARGV?@ARGV:@{$z->index()}) {
+      my $i = $z->article($u,{metadata=>1,no_redirect=>1});
+      my $e = $z->error(1);
+      if($e) {
+         print "$u not found: $e\n";
+      } else {
+         print to_json($i,{pretty=>1,canonical=>1});
+      }
+   }
+   
 } elsif($cmd eq 'index' || $cmd eq 'ix' || $cmd eq 'ls' || $cmd eq '') {
    foreach my $i (@{$z->index()}) {
       print "$i\n";
@@ -182,6 +194,8 @@ sub help {
          s <q>              \"                  \"
       article [<u>..]   output article content, optionally use -e and -i
          a [<u>..]          \"                  \"
+      meta [<u>..]      output metadata of article
+         m [<u>..]          \"          \"
       extract [<u>..]   extract article content to file, optionally use -e and -i
          x [<u>..]          \"                  \"
       query <q>         query internal xapian indices (fts or title), use --index=title to switch
