@@ -514,6 +514,10 @@ sub fts {
    my $file_xapian = $file->{$opts->{index}||'fulltext'};
    print "INF: #$$: xapian index $file_xapian\n" if($self->{verbose}>1);
    if(1) {
+      if(!-e $file_xapian) {
+         print STDERR "WARN: #$$: no index available for $_->{header}->{title}\n" unless($self->{queit});
+         return [];
+      }
       my $db = Search::Xapian::Database->new($file_xapian); 
       
       # -- it seems we have to truncate the query for some indices (??!!)
@@ -629,13 +633,22 @@ sub processRequest {
    while(1) {                # -- keep-alive operation (exit only if we fail to send)
       my $http_header;
 
-      while(1) {             # -- read the http request header
-         my $m;
-         recv($cs, $m, 1000, 0);
-         $http_header .= $m;
-         last if(length($m)<1000);
-      }
-
+      timeout(1,sub {
+         while(1) {             # -- read the http request header
+            if(0) {
+               my $m;
+               recv($cs, $m, 1000, 0);
+               $http_header .= $m;
+               last if(length($m)<1000);
+            } else {            # -- read line-wise, performs better than recv()
+               $_ = <$cs>;
+               $http_header .= $_;
+               last if(/^\s*$/);
+            }
+         }
+      });
+      exit if($@);      # -- timeout, exist (child) process
+      
       # -- processing request
       if($http_header =~  /^GET (.+) HTTP\/1\./){
          # -- Request-Line Request HTTP-message
@@ -912,10 +925,11 @@ function _zim_search() {
             "Access-Control-Allow-Methods: GET, POST, OPTIONS",
             "Access-Control-Allow-Headers: *",
             "Access-Control-Allow-Origin: *",     # -- CORS, allow XHR to make requests
-            "","");
+            "");
          send($cs, $m, 0) || last;
          
       } else {
+         print "ERR: #$$: unsupported HTTP request '$http_header'\n" if($http_header && $self->{verbose});
          last;
       }
    }
@@ -926,6 +940,18 @@ function _zim_search() {
 
 sub fnum3 {  # -- 10000000 -> 10,000,000
    return reverse join ',', unpack '(A3)*', reverse $_[0]
+}
+
+sub timeout {
+   my($t,$f) = @_;
+   return eval {
+      local $SIG{ALRM} = sub { die "timeout $t reached\n" };
+      alarm($t);
+      &$f();
+      alarm 0;
+      return 0;
+   };
+   return -1;
 }
 
 1;
