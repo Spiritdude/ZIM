@@ -20,7 +20,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.9';
+our $VERSION = '0.0.10';
 
 use strict;
 use Search::Xapian;
