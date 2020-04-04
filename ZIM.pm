@@ -8,7 +8,7 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
-# 2020/04/04: 0.0.10: in server() don't resolve direct internally, but via browser (*.stackexchange.zim rely on it)
+# 2020/04/04: 0.0.10: in server() don't resolve redirects internally, but via browser (*.stackexchange.zim rely on it)
 # 2020/04/03: 0.0.9: adding url2id cache, fixing file-not-found for server() library operation
 # 2020/03/31: 0.0.8: preliminary 64bit cluster size support to support large fulltext indexes (>4GB), improved server() web-gui supporting library (multiple zim files)
 # 2020/03/30: 0.0.7: support large article extraction direct to file (without large memory consumption) for wikipedia.zim xapian indices
