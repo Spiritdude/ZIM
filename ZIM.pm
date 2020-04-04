@@ -48,7 +48,7 @@ sub new {
       foreach my $f (@{$arg->{library}}) {
          my $b = $f; $b =~ s/\.zim$//;
          print "INF: library: adding $b ($f)\n" if($self->{verbose});
-         $self->{catalog}->{$b} = new ZIM({file=>$f});
+         $self->{catalog}->{$b} = new ZIM({file=>$f,verbose=>$self->{verbose}});
          my $me = $self->{catalog}->{$b};
          $me->entry($me->{header}->{mainPage});
          my($home,$title,$icon);

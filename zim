@@ -7,7 +7,7 @@ our $APPNAME = 'zim';
 our $VERSION = '0.0.7';
 #
 # History:
-# 2020/04/04: 0.0.7: new command meta, which only output metadata of entry/ies
+# 2020/04/04: 0.0.7: new option --meta, which only output metadata of entries with 'article' command
 # 2020/04/01: 0.0.6: --conf=<c1>,<c2>,... one or multiple conf files (JSON)
 # 2020/03/30: 0.0.5: --output=<fname> added, early support for --library=<zim1>,<zim2>,...
 # 2020/03/29: 0.0.4: 'server' enabled, very experimental web-server functionality
@@ -23,7 +23,7 @@ use ZIM;
 use Time::HiRes 'time';
 
 my $arg;
-my %s2f = ( v => 'verbose', e => 'regexp', i => 'case_insens' );
+my %s2f = ( v => 'verbose', e => 'regexp', i => 'case_insens', m => 'meta' );
 
 $arg->{index} = 'fulltext';
 $arg->{port} = 8080;
@@ -108,7 +108,8 @@ if($cmd eq 'info' || $cmd eq 'i') {
                close $fh;
             } else {
                print "== $e\n";
-               print $z->article($e);
+               my $c = $z->article($e,{metadata=>$arg->{meta},no_redirect=>$arg->{no_redirect}});
+               print $arg->{meta} ? to_json($c,{pretty=>1,canonical=>1}) : $c;
                print "\n";
             }
          }
@@ -120,25 +121,17 @@ if($cmd eq 'info' || $cmd eq 'i') {
             print "== $u -> $fout\n";
             $z->article($u,{ dest=>$fout });
          } else {
-            print $z->article($u);
+            my $c = $z->article($u,{metadata=>$arg->{meta},no_redirect=>$arg->{no_redirect}});
+            if(!$z->{error}) {
+               print $arg->{meta} ? to_json($c,{pretty=>1,canonical=>1}) : $c;
+            }
          }
       }
       if($z->error()) {
-         print "$APPNAME: ERR: ".$z->error()."\n";
+         print "$APPNAME: ERR: ".$z->error(1)."\n";
       }
    }
 
-} elsif($cmd eq 'meta' || $cmd eq 'm') {
-   foreach my $u (@ARGV?@ARGV:@{$z->index()}) {
-      my $i = $z->article($u,{metadata=>1,no_redirect=>1});
-      my $e = $z->error(1);
-      if($e) {
-         print "$u not found: $e\n";
-      } else {
-         print to_json($i,{pretty=>1,canonical=>1});
-      }
-   }
-   
 } elsif($cmd eq 'index' || $cmd eq 'ix' || $cmd eq 'ls' || $cmd eq '') {
    foreach my $i (@{$z->index()}) {
       print "$i\n";
@@ -177,6 +170,8 @@ sub help {
         -e                       \"                      \"
       --case_insens     case-insensitivity, in combination of 'search', and -e with 'article' and 'extract'
         -i                       \"         \"
+      --meta            output metadata, in combination with 'article'
+        -m                       \"                   \"
       --output=<fname>  define output filename in combination with 'extract'
       --library=<z1>,<z2>,...    define a library of multiple zim files for 'server' operation (experimental)
       --port=<p>        set port for server (default: $arg->{port})
@@ -209,6 +204,7 @@ sub help {
       zim test.zim -i s test        list urls of matching filenames
       zim test.zim a /A/Test        output article(s)
       zim test.zim -e -i a test     output articles matching terms case-insensitive
+      zim test.zim -e -i -m a test  output articles metadata
       zim test.zim x /A/Test        extract article content as file(s)
       zim test.zim -e x '\\.png'     extract article content matching regexp
       zim test.zim q test           query fts using internal xapian index (if there are such)
