@@ -515,7 +515,7 @@ sub fts {
    print "INF: #$$: xapian index $file_xapian\n" if($self->{verbose}>1);
    if(1) {
       if(!-e $file_xapian) {
-         print STDERR "WARN: #$$: no index available for $_->{header}->{title}\n" unless($self->{queit});
+         print STDERR "WARN: #$$: no index available for $self->{header}->{file}\n" unless($self->{quiet});
          return [];
       }
       my $db = Search::Xapian::Database->new($file_xapian); 
@@ -647,7 +647,7 @@ sub processRequest {
             }
          }
       });
-      exit if($@);      # -- timeout, exist (child) process
+      exit if($@);      # -- timeout, exit (child) process
       
       # -- processing request
       if($http_header =~  /^GET (.+) HTTP\/1\./){
