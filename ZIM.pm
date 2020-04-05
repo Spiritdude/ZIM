@@ -4,6 +4,8 @@ package ZIM;
 #    based on zimHttpServer.pl written by Pedro González (2012/04/06)
 #    turned into ZIM.pm by Rene K. Mueller (2020/03/28) with enhancements as listed below
 #
+# License: see LICENSE file
+#
 # Description:
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
@@ -20,7 +22,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.10';
+our $VERSION = '0.0.10.a';
 
 use strict;
 use Search::Xapian;

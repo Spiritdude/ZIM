@@ -6,6 +6,8 @@
 our $APPNAME = 'zim';
 our $VERSION = '0.0.7';
 #
+# License: see LICENSE file
+#
 # History:
 # 2020/04/04: 0.0.7: new option --meta, which only output metadata of entries with 'article' command
 # 2020/04/01: 0.0.6: --conf=<c1>,<c2>,... one or multiple conf files (JSON)
