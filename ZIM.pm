@@ -22,7 +22,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.10.a';
+our $VERSION = '0.0.10.b';
 
 use strict;
 use Search::Xapian;
@@ -518,7 +518,7 @@ sub fts {
    }
    my $file_xapian = $file->{$opts->{index}||'fulltext'};
    
-   $file_xapian = $file->{title} if(!-e $file->{fulltext} && -e $file->{title});
+   $file_xapian = $file->{title} if(!-e $file_xapian && -e $file->{title});    # -- fallback
    
    print "INF: #$$: xapian index $file_xapian\n" if($self->{verbose}>1);
    if(1) {
@@ -529,7 +529,7 @@ sub fts {
             my $n = 0;
             @r = map { 
                my $a;
-               $a->{url} = $_;
+               $a->{data} = $a->{url} = $_;
                $a->{title} = $a->{url}; $a->{title} =~ s/_/ /g; $a->{title} =~ s/^\/A\///; $a->{title} =~ s/\//: /g; $a->{title} =~ s/\.html?$//;
                $a->{score} = (length($a->{title})-index(lc $a->{title},lc $q)*0.05) / length($a->{title}) if(length($a->{title}));
                $a->{rank} = $n++;
@@ -924,6 +924,12 @@ function _zim_search() {
                unless($self->{no_search}) {
                   $mh .= "<span class=zim_search><img style=\"height:1em;opacity:0.5;vertical-align:middle\" src=\"data:image/x-png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAfCAYAAADwbH0HAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAABUAAAAVAB++UihAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAALISURBVEiJvZdNaxNBGMd/eVsKgbQqgZgXkoOtIK2ol0jZHnIRc/DQgl9BPTWR4ifwIgiK19Iv4G0Jgm8t6KWSYGlpD9Xira4bGltCsKWRxvGQbJlO87KblP7hOfxnZ+Y3z+yzs7seeusKMA3cAeKt8AA/W/EBMIAtB3M50o3WpMJhLAK3BgH6gBdAwwXUjgbwCvD3gngUHwJeA3flRq/Xy+TkJOl0mlgsBoBpmpRKJZaXl2k0Guq8i8B9oOo007dyBpqmidnZWWFZluikcrks8vm80DRNzf6jk8wBnssDE4mEWF1d7QhUtba2JpLJpAp/2Qs6gXRPE4mEME3TMdSWZVkilUqp9/xmN/AbeXtXVlZcQ+XMh4aGZPi7TtCUvD25XK5vqK25uTl1y6+2A+ftDj6fr2shOdXOzo7w+/0y+Ek78HEl67o+MNRWJpNRD5cT8gJJ2+i63q0OXGlqakq2qXbgqG3sw+EsFI1GT9h24IBtAoGAer1vaZomW3+LdQJcto1lWWcGNk1TthbwTwUf91hfXz8zsDLXr3Z9ntKqvmAwKA4ODgau6MPDQxEKheSqfqZCvUDBNvv7+8zPzw+c7cLCArVaTW4y2vXzABv26sLhsKhUKn1nu7u7KyKRiJztJkphybondRS6rot6ve4aenR0JLLZrHpcTvfaoffygGw2K6rVqmNorVYTExMTKnSJ0x8bp3QJ+CEPHB0dFYZh9IQWCgUxNjamQv8C1zvB1NVca2UelxvHx8eZmZkhnU4Tj8fxeDxsb29TLBYxDKPbY7gFZOjwOKm6DBSV1buJP4r/1prTkTQgB1RcAH8Dj4GLwCfl2nc3cIBh4AHNV2e9DaxO8wvjITAijQsCnwfJXJYfiAFp4DbNOuj2VgkBXxT4JhDpB+5Ww5yulw0gfB7wEaCkwJfOA2zDv0rgvfMCA1yg+RO4Bzz6D/yDum4lIeaUAAAAAElFTkSuQmCC\">";
                   $mh .= "<input class=zim_search_input id=_zim_search_q onchange=\"_zim_search()\" default=\"search\"></span><span id=_zim_results_hint></span>";
+                  $mh .= "<script>document.getElementById('_zim_search_q').addEventListener('keyup',function(ev) {
+if(ev.keyCode===13) {
+   ev.preventDefault();
+   _zim_search();
+}               
+});</script>"
                }
                $mh .= "</div>";
                $mh .= "<div id=_zim_results class=zim_results></div>";
