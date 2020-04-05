@@ -480,7 +480,7 @@ sub index {
    open(INDEX, "$file");
    while(<INDEX>){
       chop;
-      print "INF: #$$: > $_\n" if($self->{verbose});
+      # print "INF: #$$: > $_\n" if($self->{verbose}>3);
       if(defined $url) {
          push(@r,$_) if($self->{case_insens} && /$url/i || /$url/);
       } else {
@@ -517,10 +517,27 @@ sub fts {
       $self->error(1);    # -- in case extraction failed
    }
    my $file_xapian = $file->{$opts->{index}||'fulltext'};
+   
+   $file_xapian = $file->{title} if(!-e $file->{fulltext} && -e $file->{title});
+   
    print "INF: #$$: xapian index $file_xapian\n" if($self->{verbose}>1);
    if(1) {
       if(!-e $file_xapian) {
          print STDERR "WARN: #$$: no xapian index available for $self->{header}->{file}\n" unless($self->{quiet});
+         if($opts && $opts->{fallback}) {
+            my @r = @{$self->index($q)};       # -- fallback, try to provide some results
+            my $n = 0;
+            @r = map { 
+               my $a;
+               $a->{url} = $_;
+               $a->{title} = $a->{url}; $a->{title} =~ s/_/ /g; $a->{title} =~ s/^\/A\///; $a->{title} =~ s/\//: /g; $a->{title} =~ s/\.html?$//;
+               $a->{score} = (length($a->{title})-index(lc $a->{title},lc $q)*0.05) / length($a->{title}) if(length($a->{title}));
+               $a->{rank} = $n++;
+               $a;
+            } @r;
+            @r = sort { $b->{score} <=> $a->{score} } @r;
+            return \@r;
+         }
          return [];
       }
       my $db = Search::Xapian::Database->new($file_xapian); 
