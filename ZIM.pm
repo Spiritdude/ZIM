@@ -963,7 +963,6 @@ function _zim_search() {
 }
 
 sub fnum3 {  # -- 10000000 -> 10,000,000
-   print "'$_[0]'\n";
    return scalar reverse(join(',',unpack('(A3)*',reverse($_[0]))));
 }
 
