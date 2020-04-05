@@ -963,7 +963,12 @@ function _zim_search() {
 }
 
 sub fnum3 {  # -- 10000000 -> 10,000,000
-   return scalar reverse(join(',',unpack('(A3)*',reverse($_[0]))));
+   my($v) = @_;
+   if($v>=0) {
+      return scalar reverse(join(',',unpack('(A3)*',reverse($v))));
+   } else {
+      return "-" . scalar reverse(join(',',unpack('(A3)*',reverse(-$v))));
+   }
 }
 
 sub timeout {
