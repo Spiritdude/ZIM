@@ -53,15 +53,16 @@ sub new {
          $self->{catalog}->{$b} = new ZIM({file=>$f,verbose=>$self->{verbose}});
          my $me = $self->{catalog}->{$b};
          $me->entry($me->{header}->{mainPage});
-         my($home,$title,$icon);
+         my($home,$title,$icon,$desc);
          $home = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
          $title = $me->article("/M/Title") || $me->article("/M/Creator") || $b;
+         $desc = $me->article("/M/Description") || "";
          $title =~ s/([\w ]{12,24})\s[\W\S].*/$1/;   # -- truncate title sensible
          foreach my $i ('/-/favicon','/I/favicon.png') {
             $icon = "/$b$i", last if($me->article($i));
          }
          $me->error(1);    # -- clear error if favicon(s) are not found
-         push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header}, icon => $icon });
+         push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header}, desc => $desc, icon => $icon });
       }
       return $self;
    }
@@ -541,7 +542,10 @@ sub fts {
          return [];
       }
       my $db = Search::Xapian::Database->new($file_xapian); 
-      
+
+      my $stem = Search::Xapian::Stem->new();
+      $q = $stem->stem_word($a); 
+
       # -- it seems we have to truncate the query for some indices (??!!)
       # $q = substr($q,0,7);    # -- 'microscope' -> 'microsc'
 
@@ -784,12 +788,12 @@ sub processRequest {
                   }
                } else {                                  # -- provide overview of items in catalog
                   $body = "<html><head><title>".($self->{title}?$self->{title}:"ZIM Catalog")."</title><link href=\"data:image/x-png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAABUAAAAVAB++UihAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAHFSURBVFiF7Vavq8JgFL3bHuiwLehXLKJgXrGKImIy+gdYDWKyDNvCkn+DGMRgWrFrEsFkXNYJCgoWmeclRd/ew/1yM7wDt9zv3nvO7rZ7P46IQBGCj5L88wRIkkS6rtPhcKDRaESiKIYiAjfTNA2P6HQ6eDx/hz11IJlMPilLpVJveF477moKhQJOpxMAYLfbIZfLvb0D9NPBGEO1WoUkSWGQg7upiAqf9RtGgS8/yY1Gg0qlkuN4RVHINE2b3/MH1O/34QbZbNZWw1cHxuMxrdfrP88TiQSpqkrxeJwMw6Dtdvtr3HsmHM9jMpkAAPb7PfL5vLM5EJT1ej0AgGVZqNVqzgdREFapVGBZFgBAUZRX8cGSM8ZgmiYAYDqdguf58ARwHAdd1wEAm80GjDEnecEJaLVa9/deLped5gVDnslk7ptU0zQ3uf7JBUHAbDYDAKxWK8RisXAFtNttAMDlcoEsy27z/ZGn02kcj0cAgKqqXmr4E3CbdoZhQBTFcAUUi8X7oqnX655q+LoRLZdLkmWZzuczDYfDl/GDwYDm87nN70m5IAiuVjEANJtNWx3P6/h6vVK323WVs1gsbL7/S2nkAr4BqNINAhXMUgwAAAAASUVORK5CYII=\" rel=\"shortcut icon\" type=\"image/x-png\">
-</head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#eee;margin:1.5em 3em}.icon{float:right;vertical-align:middle;height:2em}a,a:visited{color:#444;text-decoration:none}.entry{text-align:left;font-size:1.4em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888;overflow:hidden;white-space:nowrap}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c;background:#eef}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5;margin:0.3em 0}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}.zim_summary{margin:0.5em 0;opacity:0.5;font-size:0.8em;text-align:right}</style><body><div class=catalog>";
+</head><style>html{font-family:Helvetica,Sans;margin:0;padding:0}body{background:#eee;margin:1.5em 3em}.icon{float:right;vertical-align:middle;height:2em}a,a:visited{color:#444;text-decoration:none}.entry{text-align:left;font-size:1.4em;width:20%;display:inline-block;margin:0.5em 1em;border:1px solid #ccc;border-radius:0.3em;padding:0.3em 0.6em;background:#fff;box-shadow:0 0 0.5em 0.1em #888;overflow:hidden;white-space:nowrap}.entry:hover{box-shadow: 0 0 0.5em 0.1em #55c;background:#eef}.desc{display:none;font-size:0.6em;opacity:0.8;text-overflow:ellipsis;overflow:hidden;}.catalog{text-align:center}.meta{margin:0.3em 0;font-size:0.5em;opacity:0.8}.id{font-size:0.8em;opacity:0.5;margin:0.3em 0}.footer{text-align:center;margin-top:3em;font-size:0.8em;opacity:0.7}.zim_summary{margin:0.5em 0;opacity:0.5;font-size:0.8em;text-align:right}</style><body><div class=catalog>";
                   my($tot);
                   foreach my $e (@{$self->{_catalog}}) {
                      my $meta = fnum3($e->{meta}->{articleCount}) . " articles".
                         "<div class=id>$e->{base} (".fnum3(int($e->{meta}->{filesize}/1024/1024))." MiB)</div>";
-                     $body .= "<a href=\"$e->{home}\"><span class=entry><img class=icon src=\"$e->{icon}\"> $e->{title}<div class=meta>$meta</div></span></a>";
+                     $body .= "<a href=\"$e->{home}\"><span class=entry><img class=icon src=\"$e->{icon}\"> $e->{title}<div class=desc>$e->{desc}</div><div class=meta>$meta</div></span></a>";
                      $tot->{size} += $e->{meta}->{filesize};
                      $tot->{articles} += $e->{meta}->{articleCount};
                   }
@@ -841,6 +845,7 @@ function _zim_search() {
    var q = document.getElementById('_zim_search_q').value;
    q = q.replace(/^\\s+/,'');
    q = q.replace(/\\s+\$/,'');
+   //q = q.toLowerCase();
    if(q.length==0)
       return;
    var xhr = new XMLHttpRequest();
