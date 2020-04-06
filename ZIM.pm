@@ -10,6 +10,7 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/04/06: 0.0.11: more detailed search results in server()
 # 2020/04/04: 0.0.10: in server() don't resolve redirects internally, but via browser (*.stackexchange.zim rely on it)
 # 2020/04/03: 0.0.9: adding url2id cache, fixing file-not-found for server() library operation
 # 2020/03/31: 0.0.8: preliminary 64bit cluster size support to support large fulltext indexes (>4GB), improved server() web-gui supporting library (multiple zim files)
@@ -22,7 +23,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.10.b';
+our $VERSION = '0.0.11';
 
 use strict;
 use Search::Xapian;
@@ -49,11 +50,15 @@ sub new {
       # -- create internal catalog with metadata for webgui                   
       foreach my $f (@{$arg->{library}}) {
          my $b = $f; $b =~ s/\.zim$//;
+         my $me = new ZIM({file=>$f,verbose=>$self->{verbose}});
          print "INF: library: adding $b ($f)\n" if($self->{verbose});
-         $self->{catalog}->{$b} = new ZIM({file=>$f,verbose=>$self->{verbose}});
-         my $me = $self->{catalog}->{$b};
+         if($self->{normalize} && $me->{name}) {
+            print "INF:   normalize $b -> $me->{name}\n" if($self->{verbose});
+            $b = $me->{name};
+         }
+         $self->{catalog}->{$b} = $me;
          $me->entry($me->{header}->{mainPage});
-         my($home,$title,$icon,$desc);
+         my($home,$title,$icon,$desc,$lan);
          $home = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
          $title = $me->article("/M/Title") || $me->article("/M/Creator") || $b;
          $desc = $me->article("/M/Description") || "";
@@ -62,7 +67,7 @@ sub new {
             $icon = "/$b$i", last if($me->article($i));
          }
          $me->error(1);    # -- clear error if favicon(s) are not found
-         push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header}, desc => $desc, icon => $icon });
+         push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header}, desc => $desc, icon => $icon, lan => $self->{lan} });
       }
       return $self;
    }
@@ -104,18 +109,30 @@ sub new {
    $self->{mime} = \@mime;
    $/ = "\n";
 
+   my($name,$home,$title,$icon,$desc,$lan);
+   
    my $me = $self;
    my $b = $arg->{file}; $b =~ s/\.zim$//;
+   
    $me->entry($me->{header}->{mainPage});
-   my($home,$title,$icon);
    $home = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
+   
    $title = $me->article("/M/Title") || $me->article("/M/Creator") || $b;
+   $desc = $me->article("/M/Description") || "";
+   $lan = $me->article("/M/Language") || "EN";
+   $lan = lc($lan); $lan = substr($lan,0,2) if(length($lan)>2);
+   $lan = 'en' if($lan eq 'mu');       # -- multiple
+   
+   # -- put lan and name (normalized) into object data
+   $self->{lan} = $lan unless($me->{lan});
+   $b = $self->{name} = $name = $me->article("/M/Name") || $self->{name} || $b;
+   
    foreach my $i ('/-/favicon','/I/favicon.png') {
       $icon = "/$b$i", last if($me->article($i));
    }
    $self->error(1);     # -- clear error if favicon(s) are not found
    
-   push(@{$self->{_catalog}},{ home=>$home, title=>$title, meta=>$me->{header}, icon => $icon });
+   push(@{$self->{_catalog}},{ home=>$home, title=>$title, meta=>$me->{header}, icon => $icon, desc => $desc, lan => $lan });
 
    return $self;
 }
@@ -493,6 +510,37 @@ sub index {
    return \@r;
 }
 
+my %_xapian_lan = (        # -- https://xapian.org/docs/apidoc/html/classXapian_1_1Stem.html
+   ar => 'arabic',
+   hy => 'armenian',
+   eu => 'basque',
+   ca => 'catalan',
+   da => 'danish',
+   nl => 'dutch',
+   en => 'english',
+   lovins => 'english_lovins',
+   porter => 'english_porter',
+   fi => 'finnish',
+   fr => 'french',
+   de => 'german',
+   hu => 'hungarian',
+   id => 'indonesian',
+   ga => 'irish',
+   it => 'italian',
+   lt => 'lithuanian',
+   ne => 'nepali',
+   no => 'norwegian',
+   nb => 'norwegian',
+   nn => 'norwegian',
+   pt => 'portuguese',
+   ro => 'romanian',
+   ru => 'russian',
+   es => 'spanish',
+   sv => 'swedish',
+   ta => 'tamil',
+   tr => 'turkish',
+);
+
 sub fts {
    my $self = shift;
    my $q = shift;
@@ -542,8 +590,12 @@ sub fts {
          return [];
       }
       my $db = Search::Xapian::Database->new($file_xapian); 
-
-      my $stem = Search::Xapian::Stem->new('english');      # -- this is bad: stemmer requires language setting, so we need to know it in advance
+      # -- this is bad: stemmer requires language setting, so we need to know it in advance
+      #    see https://xapian.org/docs/apidoc/html/classXapian_1_1Stem.html
+      # -- 1) we set stemmer per index, given we have a single language per set (bad idea: gutenberg_mul_all has multiple languages)
+      #    2) we define overall language for all indices (bad idea: we might miss results)
+      #     => stemming is bad
+      my $stem = Search::Xapian::Stem->new(($opts && $_xapian_lan{$opts->{lan}})||$_xapian_lan{lc($self->{lan})}||'en');      
       $q = $stem->stem_word($q); 
 
       # -- it seems we have to truncate the query for some indices (??!!)
@@ -552,8 +604,17 @@ sub fts {
       my $enq = $db->enquire($q);
       print "INF: #$$: xapian query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
       $opts = $opts || { };
-      my @r = $enq->matches($opts->{offset}||0,$opts->{limit}||100);
+
+      my $meta;
+  
+      my $mset = $enq->get_mset($opts->{offset}||0,$opts->{limit}||100);
+      $meta->{total} += $mset->get_matches_estimated();
+
+      my @r = $mset->items();
+      #my @r = $enq->matches($opts->{offset}||0,$opts->{limit}||100);
+
       my @re;
+
       foreach my $m (@r) {
          my $doc = $m->get_document();
          my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, url => "/".$doc->get_data() };
@@ -567,6 +628,7 @@ sub fts {
          #print to_json($e,{pretty=>1,canonical=>1});
          push(@re,$e);
       }
+      return (\@re,$meta) if($opts && $opts->{meta});
       return \@re;
    }
    #if(!-e $file_tt && $self->article("/X/title/xapian",{dest=>$file_title})) {
@@ -701,22 +763,27 @@ sub processRequest {
                }
             }
             my $res = { };          # -- response
-            $res->{server} => {
+            $res->{server} = {
                name => "zim web-server $::VERSION ($NAME $VERSION)",
                time => time(),
                date => scalar localtime()
             };
             if($in->{q}) {
                my @r;
+               $in->{meta}++;
                if($self->{catalog}) {
                   if($in->{content}) {
-                     @r = map { $_->{base} = $in->{content}; $_->{url} = "/$in->{content}$_->{url}"; $_ } @{$self->{catalog}->{$in->{content}}->fts($in->{q},$in)};
+                     my($rs,$meta) = $self->{catalog}->{$in->{content}}->fts($in->{q},$in);
+                     @r = map { $_->{base} = $in->{content}; $_->{url} = "/$in->{content}$_->{url}"; $_ } @$rs;
+                     $res->{results}->{total} = $meta->{total} if($meta && $meta->{total});
                   } else {
                      foreach my $e (sort keys %{$self->{catalog}}) {
                         my $me = $self->{catalog}->{$e};
                         my $st = time();
-                        push(@r,map { $_->{base} = $e; $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});  # -- rebase
-                        push(@{$res->{server}->{performed}},"fts $e:$in->{q}".sprintf(" %.1fms",(time()-$st)*1000));
+                        my($rs,$meta) = $self->{catalog}->{$e}->fts($in->{q},$in);
+                        $res->{results}->{total} += $meta->{total} if($meta && $meta->{total});
+                        push(@r,map { $_->{base} = $e; $_->{url} = "/$e$_->{url}"; $_ } @$rs);  # -- rebase
+                        push(@{$res->{server}->{performed}},"fts $e:$in->{q}".sprintf(" %.1fms",(time()-$st)*1000)." ".(ref($meta)&&defined $meta->{total}?$meta->{total}." hits":""));
                      }
                      @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
                      my $r = 0;
@@ -724,7 +791,9 @@ sub processRequest {
                      @r = splice(@r,$in->{offset},$in->{limit}) if($in->{offset}||$in->{limit});      # -- apply limit & offset
                   }
                } else {
-                  @r = @{$self->fts($in->{q},$in)};
+                  my($rs,$meta) = $self->fts($in->{q},$in);
+                  @r = @$rs;
+                  $res->{results}->{total} = $meta->{total} if($meta && $meta->{total});
                }
                if($in->{snippets}) {                           # -- let's try to extract relevant snippets
                   my $st = time();
@@ -764,12 +833,12 @@ sub processRequest {
                   }
                   push(@{$res->{server}->{performed}},"retrieved ".($in->{snippets}*1)." snippets".sprintf(" %.1fms",(time-$st)*1000));
                }
-               $res->{results} = { hits => \@r };
+               $res->{results}->{hits} = \@r;
 
             } elsif($in->{catalog}) {
                $res->{results} = { catalog => $self->{_catalog} ? $self->{_catalog} : [] };
             }
-            $res->{server}->{elapsed} => time()-$st,
+            $res->{server}->{elapsed} = time()-$st;
             $body = to_json($res, { pretty => $in->{_pretty}, canonical => 1});
             $mime = 'application/json';
             
@@ -840,9 +909,10 @@ sub processRequest {
             if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
                my $mh = "";
                # $mh .= "<base href=\"/$base/\">";
-               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_header.small{font-size:0.8em;}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_search_input,.zim_search_input:focus{padding:0.1em 0.3em;background:none;border:none;outline:none}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}}.blink{animation:blink 1s infinite ease-in-out}</style>";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_header.small{font-size:0.8em;}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_search_input,.zim_search_input:focus{padding:0.1em 0.3em;background:none;border:none;outline:none}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}}.blink{animation:blink 1s infinite ease-in-out}.hit_summary{opacity:0.5;font-size:0.7em;margin-bottom:0.5em}</style>";
                $mh .= "<script>
 var _zim_base = \"$base\";
+function fnum3(v) { return v.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,','); }
 function _zim_search() {
    var q = document.getElementById('_zim_search_q').value;
    q = q.replace(/^\\s+/,'');
@@ -859,6 +929,7 @@ function _zim_search() {
    var id = document.getElementById('_zim_results');
    id.classList.toggle('active',false);
    id.innerHTML = '...';
+   var st = new Date()*1;
    xhr.onload = function() {
       if(xhr.status >= 200 && xhr.status < 300) {
          //console.log(xhr.responseText);
@@ -872,7 +943,9 @@ function _zim_search() {
          //id.innerHTML = JSON.stringify(data);
          if(data && data.results && data.results.hits) {
             var _id = document.getElementById('_zim_results_hint');
-            _id.innerHTML = data.results.hits.length + ' results';
+            //_id.innerHTML = data.results.hits.length + ' results';
+            var elapsed = fnum3(new Date()*1 - st) + 'ms';
+            _id.innerHTML = fnum3(data.results.hits.length) + ' results ' + (data.results.total ? 'of '+fnum3(data.results.total) : '' )+ ' ('+elapsed+')';
             _id.classList.toggle('blink',false);
             for(var e of data.results.hits) {
                if(e.title.length==0) {
@@ -930,7 +1003,7 @@ function _zim_search() {
                }
                unless($self->{no_search}) {
                   $mh .= "<span class=zim_search><img style=\"height:1em;opacity:0.5;vertical-align:middle\" src=\"data:image/x-png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAfCAYAAADwbH0HAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAABUAAAAVAB++UihAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAALISURBVEiJvZdNaxNBGMd/eVsKgbQqgZgXkoOtIK2ol0jZHnIRc/DQgl9BPTWR4ifwIgiK19Iv4G0Jgm8t6KWSYGlpD9Xira4bGltCsKWRxvGQbJlO87KblP7hOfxnZ+Y3z+yzs7seeusKMA3cAeKt8AA/W/EBMIAtB3M50o3WpMJhLAK3BgH6gBdAwwXUjgbwCvD3gngUHwJeA3flRq/Xy+TkJOl0mlgsBoBpmpRKJZaXl2k0Guq8i8B9oOo007dyBpqmidnZWWFZluikcrks8vm80DRNzf6jk8wBnssDE4mEWF1d7QhUtba2JpLJpAp/2Qs6gXRPE4mEME3TMdSWZVkilUqp9/xmN/AbeXtXVlZcQ+XMh4aGZPi7TtCUvD25XK5vqK25uTl1y6+2A+ftDj6fr2shOdXOzo7w+/0y+Ek78HEl67o+MNRWJpNRD5cT8gJJ2+i63q0OXGlqakq2qXbgqG3sw+EsFI1GT9h24IBtAoGAer1vaZomW3+LdQJcto1lWWcGNk1TthbwTwUf91hfXz8zsDLXr3Z9ntKqvmAwKA4ODgau6MPDQxEKheSqfqZCvUDBNvv7+8zPzw+c7cLCArVaTW4y2vXzABv26sLhsKhUKn1nu7u7KyKRiJztJkphybondRS6rot6ve4aenR0JLLZrHpcTvfaoffygGw2K6rVqmNorVYTExMTKnSJ0x8bp3QJ+CEPHB0dFYZh9IQWCgUxNjamQv8C1zvB1NVca2UelxvHx8eZmZkhnU4Tj8fxeDxsb29TLBYxDKPbY7gFZOjwOKm6DBSV1buJP4r/1prTkTQgB1RcAH8Dj4GLwCfl2nc3cIBh4AHNV2e9DaxO8wvjITAijQsCnwfJXJYfiAFp4DbNOuj2VgkBXxT4JhDpB+5Ww5yulw0gfB7wEaCkwJfOA2zDv0rgvfMCA1yg+RO4Bzz6D/yDum4lIeaUAAAAAElFTkSuQmCC\">";
-                  $mh .= "<input class=zim_search_input id=_zim_search_q onchange=\"_zim_search()\" default=\"search\"></span><span id=_zim_results_hint></span>";
+                  $mh .= "<input class=zim_search_input id=_zim_search_q _xonchange=\"_zim_search()\" default=\"search\"></span><span id=_zim_results_hint></span>";
                   $mh .= "<script>document.getElementById('_zim_search_q').addEventListener('keyup',function(ev) {
 if(ev.keyCode===13 || ev.key==='Enter') {
    ev.preventDefault();
