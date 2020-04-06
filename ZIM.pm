@@ -543,8 +543,8 @@ sub fts {
       }
       my $db = Search::Xapian::Database->new($file_xapian); 
 
-      my $stem = Search::Xapian::Stem->new();
-      $q = $stem->stem_word($a); 
+      my $stem = Search::Xapian::Stem->new('english');      # -- this is bad: stemmer requires language setting, so we need to know it in advance
+      $q = $stem->stem_word($q); 
 
       # -- it seems we have to truncate the query for some indices (??!!)
       # $q = substr($q,0,7);    # -- 'microscope' -> 'microsc'
@@ -700,7 +700,12 @@ sub processRequest {
                   $in->{$1}++;
                }
             }
-            my $res = { };
+            my $res = { };          # -- response
+            $res->{server} => {
+               name => "zim web-server $::VERSION ($NAME $VERSION)",
+               time => time(),
+               date => scalar localtime()
+            };
             if($in->{q}) {
                my @r;
                if($self->{catalog}) {
@@ -709,7 +714,9 @@ sub processRequest {
                   } else {
                      foreach my $e (sort keys %{$self->{catalog}}) {
                         my $me = $self->{catalog}->{$e};
+                        my $st = time();
                         push(@r,map { $_->{base} = $e; $_->{url} = "/$e$_->{url}"; $_ } @{$me->fts($in->{q})});  # -- rebase
+                        push(@{$res->{server}->{performed}},"fts $e:$in->{q}".sprintf(" %.1fms",(time()-$st)*1000));
                      }
                      @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
                      my $r = 0;
@@ -720,6 +727,7 @@ sub processRequest {
                   @r = @{$self->fts($in->{q},$in)};
                }
                if($in->{snippets}) {                           # -- let's try to extract relevant snippets
+                  my $st = time();
                   for(my $i=0; $i<$in->{snippets}; $i++) {
                      last if($i>=@r);
                      my $me = $self;
@@ -754,21 +762,15 @@ sub processRequest {
                      $r[$i]->{snippet} = $exp;
                      $r[$i]->{headers} = $headers;
                   }
+                  push(@{$res->{server}->{performed}},"retrieved ".($in->{snippets}*1)." snippets".sprintf(" %.1fms",(time-$st)*1000));
                }
-               $res = { hits => \@r };
+               $res->{results} = { hits => \@r };
 
             } elsif($in->{catalog}) {
-               $res = { catalog => $self->{_catalog} ? $self->{_catalog} : [] };
+               $res->{results} = { catalog => $self->{_catalog} ? $self->{_catalog} : [] };
             }
-            $body = to_json({ 
-               results => $res,
-               server => {
-                  name => "zim web-server $::VERSION ($NAME $VERSION)",
-                  elapsed => time()-$st,
-                  time => time(),
-                  date => scalar localtime()
-               }
-            }, { pretty => $in->{_pretty}, canonical => 1});
+            $res->{server}->{elapsed} => time()-$st,
+            $body = to_json($res, { pretty => $in->{_pretty}, canonical => 1});
             $mime = 'application/json';
             
          } else {
@@ -845,7 +847,7 @@ function _zim_search() {
    var q = document.getElementById('_zim_search_q').value;
    q = q.replace(/^\\s+/,'');
    q = q.replace(/\\s+\$/,'');
-   //q = q.toLowerCase();
+   //q = q.toLowerCase();        // not required anymore, as we stem at backend
    if(q.length==0)
       return;
    var xhr = new XMLHttpRequest();
