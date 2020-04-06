@@ -10,6 +10,7 @@ package ZIM;
 #   provides basic OO interface to ZIM files as provided by kiwix.org
 #
 # History:
+# 2020/04/06: 0.0.12: server(): async snippet retrieval (experimental)
 # 2020/04/06: 0.0.11: more detailed search results in server()
 # 2020/04/04: 0.0.10: in server() don't resolve redirects internally, but via browser (*.stackexchange.zim rely on it)
 # 2020/04/03: 0.0.9: adding url2id cache, fixing file-not-found for server() library operation
@@ -23,7 +24,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.11';
+our $VERSION = '0.0.12';
 
 use strict;
 use Search::Xapian;
@@ -49,7 +50,7 @@ sub new {
    if($arg->{library}) { 
       # -- create internal catalog with metadata for webgui                   
       foreach my $f (@{$arg->{library}}) {
-         my $b = $f; $b =~ s/\.zim$//;
+         my $b = $f; $b =~ s/\.zim$//; $b =~ s/.+\///;
          my $me = new ZIM({file=>$f,verbose=>$self->{verbose}});
          print "INF: library: adding $b ($f)\n" if($self->{verbose});
          if($self->{normalize} && $me->{name}) {
@@ -58,16 +59,11 @@ sub new {
          }
          $self->{catalog}->{$b} = $me;
          $me->entry($me->{header}->{mainPage});
-         my($home,$title,$icon,$desc,$lan);
-         $home = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
-         $title = $me->article("/M/Title") || $me->article("/M/Creator") || $b;
-         $desc = $me->article("/M/Description") || "";
+         $me->{home} = "/$b/".$me->{article}->{namespace}."/".$me->{article}->{url};
+         my $title = $me->{title};
          $title =~ s/([\w ]{12,24})\s[\W\S].*/$1/;   # -- truncate title sensible
-         foreach my $i ('/-/favicon','/I/favicon.png') {
-            $icon = "/$b$i", last if($me->article($i));
-         }
          $me->error(1);    # -- clear error if favicon(s) are not found
-         push(@{$self->{_catalog}},{ base=>$b, home=>$home, title=>$title, meta=>$me->{header}, desc => $desc, icon => $icon, lan => $self->{lan} });
+         push(@{$self->{_catalog}},{ base=>$b, home=>$me->{home}, title=>$title, meta=>$me->{header}, desc => $me->{desc}, icon => "$b$me->{icon}", lan => $me->{lan} });
       }
       return $self;
    }
@@ -109,30 +105,31 @@ sub new {
    $self->{mime} = \@mime;
    $/ = "\n";
 
-   my($name,$home,$title,$icon,$desc,$lan);
-   
    my $me = $self;
    my $b = $arg->{file}; $b =~ s/\.zim$//;
+   $b =~ s/.*\///;
    
    $me->entry($me->{header}->{mainPage});
-   $home = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
+   $self->{home} = "/".$me->{article}->{namespace}."/".$me->{article}->{url};
    
-   $title = $me->article("/M/Title") || $me->article("/M/Creator") || $b;
-   $desc = $me->article("/M/Description") || "";
-   $lan = $me->article("/M/Language") || "EN";
-   $lan = lc($lan); $lan = substr($lan,0,2) if(length($lan)>2);
-   $lan = 'en' if($lan eq 'mu');       # -- multiple
+   $self->{title} = $self->{title} || $me->article("/M/Title") || $me->article("/M/Creator") || $b;
+   $self->{desc} = $self->{desc} || $me->article("/M/Description") || "";
+   $self->{lan} = $self->{lan} || lc($me->article("/M/Language")) || "en";
+   $self->{lan} = substr($self->{lan},0,2) if(length($self->{lan})>2);
+   $self->{lan} = 'en' if($self->{lan} eq 'mu');       # -- multiple: fallback to en
    
-   # -- put lan and name (normalized) into object data
-   $self->{lan} = $lan unless($me->{lan});
-   $b = $self->{name} = $name = $me->article("/M/Name") || $self->{name} || $b;
-   
+   $self->{name} = $me->article("/M/Name") || $self->{name} || $b;
+   $b = $self->{name} if($self->{normalize});
+
+   my $icon;
    foreach my $i ('/-/favicon','/I/favicon.png') {
-      $icon = "/$b$i", last if($me->article($i));
+      $icon = $i, last if($me->article($i));
    }
    $self->error(1);     # -- clear error if favicon(s) are not found
+   $self->{icon} = $self->{icon} || $icon;
    
-   push(@{$self->{_catalog}},{ home=>$home, title=>$title, meta=>$me->{header}, icon => $icon, desc => $desc, lan => $lan });
+   # -- if we are just one, make single catalog entry
+   push(@{$self->{_catalog}},{ home=>$self->{home}, title=>$self->{title}, meta=>$self->{header}, icon => $self->{icon}, desc => $self->{desc}, lan => $self->{lan} });
 
    return $self;
 }
@@ -628,8 +625,7 @@ sub fts {
          #print to_json($e,{pretty=>1,canonical=>1});
          push(@re,$e);
       }
-      return (\@re,$meta) if($opts && $opts->{meta});
-      return \@re;
+      return wantarray ? (\@re,$meta) : \@re;
    }
    #if(!-e $file_tt && $self->article("/X/title/xapian",{dest=>$file_title})) {
    #} 
@@ -773,16 +769,18 @@ sub processRequest {
                $in->{meta}++;
                if($self->{catalog}) {
                   if($in->{content}) {
-                     my($rs,$meta) = $self->{catalog}->{$in->{content}}->fts($in->{q},$in);
-                     @r = map { $_->{base} = $in->{content}; $_->{url} = "/$in->{content}$_->{url}"; $_ } @$rs;
-                     $res->{results}->{total} = $meta->{total} if($meta && $meta->{total});
+                     if($self->{catalog}->{$in->{content}}) {
+                        my($rs,$meta) = $self->{catalog}->{$in->{content}}->fts($in->{q},$in);
+                        @r = map { $_->{icon} = $self->{catalog}->{$in->{content}}->{icon}; $_->{base} = $in->{content}; $_->{url} = "/$in->{content}$_->{url}"; $_ } @$rs;
+                        $res->{results}->{total} = $meta->{total} if($meta && $meta->{total});
+                     }
                   } else {
                      foreach my $e (sort keys %{$self->{catalog}}) {
                         my $me = $self->{catalog}->{$e};
                         my $st = time();
                         my($rs,$meta) = $self->{catalog}->{$e}->fts($in->{q},$in);
                         $res->{results}->{total} += $meta->{total} if($meta && $meta->{total});
-                        push(@r,map { $_->{base} = $e; $_->{url} = "/$e$_->{url}"; $_ } @$rs);  # -- rebase
+                        push(@r,map { $_->{icon} = $self->{catalog}->{$e}->{icon}; $_->{base} = $e; $_->{url} = "/$e$_->{url}"; $_ } @$rs);  # -- rebase
                         push(@{$res->{server}->{performed}},"fts $e:$in->{q}".sprintf(" %.1fms",(time()-$st)*1000)." ".(ref($meta)&&defined $meta->{total}?$meta->{total}." hits":""));
                      }
                      @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
@@ -910,9 +908,25 @@ sub processRequest {
                my $mh = "";
                # $mh .= "<base href=\"/$base/\">";
                $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_header.small{font-size:0.8em;}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_search_input,.zim_search_input:focus{padding:0.1em 0.3em;background:none;border:none;outline:none}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}}.blink{animation:blink 1s infinite ease-in-out}.hit_summary{opacity:0.5;font-size:0.7em;margin-bottom:0.5em}</style>";
-               $mh .= "<script>
-var _zim_base = \"$base\";
+               $mh .= <<EOT1;
+<script>
+var _zim_base = "$base";
 function fnum3(v) { return v.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,','); }
+function xhr(u,f,opts) {
+   var xhr = new XMLHttpRequest();
+   xhr.onload = function() {
+      if(xhr.status >= 200 && xhr.status < 300) {
+         f(opts&&opts.format=='raw'?xhr.responseText:JSON.parse(xhr.responseText));
+      }
+   };
+   xhr.open('GET',u + (
+      opts && opts.data ? 
+         '?'+Object.keys(opts.data).map(function(k){return k+'='+encodeURIComponent(opts.data[k])}).join('&') : 
+         ''
+   ));
+   xhr.send();
+}
+
 function _zim_search() {
    var q = document.getElementById('_zim_search_q').value;
    q = q.replace(/^\\s+/,'');
@@ -920,8 +934,6 @@ function _zim_search() {
    //q = q.toLowerCase();        // not required anymore, as we stem at backend
    if(q.length==0)
       return;
-   var xhr = new XMLHttpRequest();
-
    var _id = document.getElementById('_zim_results_hint');
    _id.innerHTML = 'searching ...';
    _id.classList.toggle('blink',true);
@@ -930,57 +942,87 @@ function _zim_search() {
    id.classList.toggle('active',false);
    id.innerHTML = '...';
    var st = new Date()*1;
-   xhr.onload = function() {
-      if(xhr.status >= 200 && xhr.status < 300) {
-         //console.log(xhr.responseText);
-         var data = JSON.parse(xhr.responseText);
-         //console.log(data);
-         if(data.results.hits.length>0)
-            id.classList.toggle('active',true);
-         else
-            id.classList.toggle('active',false);
-         var o = '';
-         //id.innerHTML = JSON.stringify(data);
-         if(data && data.results && data.results.hits) {
-            var _id = document.getElementById('_zim_results_hint');
-            //_id.innerHTML = data.results.hits.length + ' results';
-            var elapsed = fnum3(new Date()*1 - st) + 'ms';
-            _id.innerHTML = fnum3(data.results.hits.length) + ' results ' + (data.results.total ? 'of '+fnum3(data.results.total) : '' )+ ' ('+elapsed+')';
-            _id.classList.toggle('blink',false);
-            for(var e of data.results.hits) {
-               if(e.title.length==0) {
-                  e.title = e.url.replace(/.*\\//,'');
+   xhr('/rest',function(data) {
+      //console.log(xhr.responseText);
+      //var data = JSON.parse(xhr.responseText);
+      //console.log(data);
+      if(data.results.hits.length>0)
+         id.classList.toggle('active',true);
+      else
+         id.classList.toggle('active',false);
+      var o = '';
+      //id.innerHTML = JSON.stringify(data);
+      if(data && data.results && data.results.hits) {
+         var _id = document.getElementById('_zim_results_hint');
+         //_id.innerHTML = data.results.hits.length + ' results';
+         var elapsed = fnum3(new Date()*1 - st) + 'ms';
+         _id.innerHTML = fnum3(data.results.hits.length) + ' results ' + (data.results.total ? 'of '+fnum3(data.results.total) : '' )+ ' ('+elapsed+')';
+         _id.classList.toggle('blink',false);
+         var cid = 0;
+         var re = new RegExp("(.{5,30})(" + q.replace(/[\\?\\.\\\\]/g,"") + ")(.{5,30})","i");        // -- used for create snippets
+         for(var e of data.results.hits) {
+            if(e.title.length==0) {
+               e.title = e.url.replace(/.*\\//,'');
+            }
+            var sn = e.snippet || ''; 
+            var hd = '';
+            for(var h in e.headers) {
+               for(var t in e.headers[h]) {
+                  if(hd.length>0)
+                     hd += ' &middot; ';
+                  if(e.headers[h][t])
+                     hd += '<span class=snippet_header_'+h+'>' + e.headers[h][t] + '</span>';
+                  if(t>10)
+                     break;
                }
-               var sn = e.snippet || ''; 
-               var hd = '';
-               for(var h in e.headers) {
-                  for(var t in e.headers[h]) {
-                     if(hd.length>0)
-                        hd += ' &middot; ';
-                     if(e.headers[h][t])
-                        hd += '<span class=snippet_header_'+h+'>' + e.headers[h][t] + '</span>';
-                     if(t>10)
+            }
+            if(hd.length>0) 
+               sn = sn + '<div class=heads>' + hd + '</div>';
+            var ico = e.base ? '<img class=hit_icon src="/' + e.base + e.icon + '">' : '';
+            o += '<div class=hit><a class=title href="' + e.url + '">' + ico + e.title + '</a>' + 
+               (1||sn ? '<div id=cite_'+cid+' class=snippet>'+sn+'</div>' : '') + '</div>';     // add snippets even it's empty, as we retrieve it later :-)
+            xhr(e.url,(function(cid) {       // doing magick: we create snippets on the fly
+               return function(data) {
+                  data = data.replace(/<script>[^<]*<\\/script>/mg,' ');
+                  data = data.replace(/<(p|br)>/g,' ');
+                  var hd = [];
+                  for(var l of data.split(/\\n/)) {
+                     if(m=l.match(/<h(\\d+)[^>]*>([^<]+)<\\/h/i)) {
+                        var n = m[1]*1 - 1;
+                        hd[n] = hd[n] || [ ];
+                        hd[n].push(m[2]);
+                     }
+                  }
+                  data = data.replace(/<[^>]+>/g,'');
+                  data = data.replace(/\\s+/g,' ');
+                  // -- create a snippet (live)
+                  var sn = '';
+                  var j = 0;
+                  for(var i=0; i<5; i++) {
+                     if(!(data=data.replace(re,function(\$0,\$1,\$2,\$3) {
+                        sn += \$1 + '<b>'+\$2+'</b>' + \$3;
+                        j++;
+                        return '';
+                     })))
                         break;
                   }
-               }
-               if(hd.length>0) 
-                  sn = sn + '<div class=heads>' + hd + '</div>';
-               var ico = e.base ? '<img class=hit_icon src=\"/' + e.base + '/-/favicon\">' : '';
-               o += '<div class=hit><a class=title href=\"' + e.url + '\">' + ico + e.title + '</a>' + (sn ? '<div class=snippet>'+sn+'</div>' : '') + '</div>';
-            }
-            id.innerHTML = o;
-         } else {
-            var _id = document.getElementById('_zim_results_hint');
-            _id.classList.toggle('blink',false);
-            _id.innerHTML = 'search failed';
+                  if(hd[1] && hd[1].length)     // only consider h2's (h[1])
+                     sn += '<div class=heads>' + hd[1].join(' &middot; ') + '</div>';
+                  document.getElementById('cite_'+cid).innerHTML = sn;
+               };
+            })(cid),{format:'raw'});
+            cid++;
          }
+         id.innerHTML = o;
+      } else {
+         var _id = document.getElementById('_zim_results_hint');
+         _id.classList.toggle('blink',false);
+         _id.innerHTML = 'search failed';
       }
-   };
-   var p = { q: q, snippets: 50, limit: 100 };
-   xhr.open('GET','/rest?'+Object.keys(p).map(function(k){return k+'='+encodeURIComponent(p[k])}).join('&'));
-   xhr.send();
+   },{ data: { q: q, snippets: 0, limit: 100 } });
 }               
-</script>";
+</script>
+EOT1
                my $xtr = ''; #$base && @{$self->{_catalog}} > 6 ? "small" : "";
                $mh .= "<div class=\"zim_header $xtr\">";
                $mh .= "<a href=\"/\"><span class=zim_entry>&#127968;</span></a>"; # if($base);

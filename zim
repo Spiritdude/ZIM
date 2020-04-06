@@ -140,8 +140,8 @@ if($cmd eq 'info' || $cmd eq 'i') {
    }
    
 } elsif($cmd eq 'search' || $cmd eq 's') {
-   foreach my $i (@{$z->index(shift(@ARGV))}) {
-      print "$i\n";
+   foreach my $u (@{$z->index(shift(@ARGV))}) {
+      print "$u\n";
    }
    
 } elsif($cmd eq 'query' || $cmd eq 'q') {
