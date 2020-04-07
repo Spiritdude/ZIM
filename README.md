@@ -122,9 +122,6 @@ and then open the browser of your choice `http://127.0.0.1:8080`
 ```
 so the first query via the browser won't take too long.
 
-
-![ZIM Catalog](examples/catalog.png)
-
 ### Library Support
 Very early support for multiple ZIM files but one web-server / site is available using `--library=` option:
 ```
@@ -152,6 +149,8 @@ zim.conf
 % zim --conf=/some/where/zim.conf server
 ```
 **Note**: `--library` is only considered for `server` operation, other commands do not support library yet.
+
+![ZIM Catalog](examples/catalog.png)
 
 ### RESTful API
 
