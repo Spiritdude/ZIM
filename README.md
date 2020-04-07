@@ -122,6 +122,9 @@ and then open the browser of your choice `http://127.0.0.1:8080`
 ```
 so the first query via the browser won't take too long.
 
+
+![ZIM Catalog](examples/catalog.png)
+
 ### Library Support
 Very early support for multiple ZIM files but one web-server / site is available using `--library=` option:
 ```
@@ -281,6 +284,10 @@ foreach my $u (@$r) {
 }
 
 my $rs = $z->fts("test", { index => 'title' });
+   # index: 'fulltext' (default) or 'title'
+   # offset: 0 (default)
+   # limit: 100 (default)
+   # snippets: 0 (default)   amount of snippets extracted
 foreach my $e (@$rs) {
    print to_json($e, { pretty => 1, canonical => 1 });
 }
