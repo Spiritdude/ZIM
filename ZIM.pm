@@ -909,7 +909,7 @@ sub processRequest {
             if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
                my $mh = "";
                # $mh .= "<base href=\"/$base/\">";
-               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_header.small{font-size:0.8em;}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_search_input,.zim_search_input:focus{padding:0.1em 0.3em;background:none;border:none;outline:none}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}}.blink{animation:blink 1s infinite ease-in-out}.hit_summary{opacity:0.5;font-size:0.7em;margin-bottom:0.5em}</style>";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_header.small{font-size:0.8em;}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_search_input,.zim_search_input:focus{padding:0.1em 0.3em;background:none;border:none;outline:none}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}}.blink{animation:blink 1s infinite ease-in-out}.hit_summary{opacity:0.5;font-size:0.7em;margin-bottom:0.5em}.hit .url{color:#484;font-size:0.7em;margin-bottom:0.3em}</style>";
                $mh .= <<EOT1;
 <script>
 var _zim_base = "$base";
@@ -981,7 +981,14 @@ function _zim_search() {
             if(hd.length>0) 
                sn = sn + '<div class=heads>' + hd + '</div>';
             var ico = e.base ? '<img class=hit_icon src="/' + e.base + e.icon + '">' : '';
-            o += '<div class=hit><a class=title href="' + e.url + '">' + ico + e.title + '</a>' + 
+            var lnk = e.url; 
+            lnk = lnk.replace(/\\//,'');
+            if(e.base)
+               lnk = lnk.replace(/\\//,': ');
+            o += '<div class=hit>'+
+               '<a class=title href="' + e.url + '">' + 
+               '<div class=url>' + lnk + '</div>' +
+               ico + e.title + '</a>' + 
                (1||sn ? '<div id=cite_'+cid+' class=snippet>'+sn+'</div>' : '') + '</div>';     // add snippets even it's empty, as we retrieve it later :-)
             xhr(e.url,(function(cid) {       // doing magick: we create snippets on the fly
                return function(data) {
