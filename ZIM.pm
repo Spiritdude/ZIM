@@ -24,10 +24,10 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.12';
+our $VERSION = '0.0.12.b';
 
 use strict;
-use Search::Xapian;
+use Search::Xapian ':all';
 use Time::HiRes 'time';
 # use IO::Uncompress::AnyUncompress qw(anyuncompress $AnyUncompressError); 
 use JSON;
@@ -595,12 +595,19 @@ sub fts {
       #    2) we define overall language for all indices (bad idea: we might miss results)
       #     => stemming is bad
       my $stem = Search::Xapian::Stem->new(($opts && $_xapian_lan{$opts->{lan}})||$_xapian_lan{lc($self->{lan})}||'en');      
-      $q = $stem->stem_word($q); 
-
-      # -- it seems we have to truncate the query for some indices (??!!)
-      # $q = substr($q,0,7);    # -- 'microscope' -> 'microsc'
-
-      my $enq = $db->enquire($q);
+      my $enq;
+      if(1) {
+         my $qp = Search::Xapian::QueryParser->new();
+         $qp->set_stemmer($stem);
+         $qp->set_database($db);
+         $qp->set_stemming_strategy(STEM_ALL);        # -- essential
+         $enq = Search::Xapian::Enquire->new($db);
+         $enq->set_query($qp->parse_query($q));
+      } else {
+         $q = $stem->stem_word($q); 
+         $enq = $db->enquire($q);
+      }
+      
       print "INF: #$$: xapian query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
       $opts = $opts || { };
 
@@ -616,7 +623,7 @@ sub fts {
 
       foreach my $m (@r) {
          my $doc = $m->get_document();
-         my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, url => "/".$doc->get_data() };
+         my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, weight => $m->get_weight(), score => $m->get_percent()/100, url => "/".$doc->get_data() };
          $self->article($e->{url},{metadata=>1});
          #foreach my $k (keys %{$self->{article}}) {
          foreach my $k (qw(title revision number namespace mimetype)) {
@@ -785,7 +792,7 @@ sub processRequest {
                         push(@r,map { $_->{icon} = $self->{catalog}->{$e}->{icon}; $_->{base} = $e; $_->{url} = "/$e$_->{url}"; $_ } @$rs);  # -- rebase
                         push(@{$res->{server}->{performed}},"fts $e:$in->{q}".sprintf(" %.1fms",(time()-$st)*1000)." ".(ref($meta)&&defined $meta->{total}?$meta->{total}." hits":""));
                      }
-                     @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
+                     @r = sort { $b->{score}*$b->{weight} <=> $a->{score}*$a->{weight} } @r;      # -- sort according score (merge all results)
                      my $r = 0;
                      @r = map { $_->{rank} = $r++; $_ } @r;             # -- rerank
                      @r = splice(@r,$in->{offset},$in->{limit}) if($in->{offset}||$in->{limit});      # -- apply limit & offset
@@ -909,7 +916,7 @@ sub processRequest {
             if(1 && $mime eq 'text/html') {    # -- we need to change/tamper the HTML ...
                my $mh = "";
                # $mh .= "<base href=\"/$base/\">";
-               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_header.small{font-size:0.8em;}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_search_input,.zim_search_input:focus{padding:0.1em 0.3em;background:none;border:none;outline:none}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}}.blink{animation:blink 1s infinite ease-in-out}.hit_summary{opacity:0.5;font-size:0.7em;margin-bottom:0.5em}</style>";
+               $mh .= "<style>body{margin-top:3em !important}.zim_header{z-index:1000;position:fixed;width:100%;padding:0.3em 1em;text-align:center;background:#bbb;box-shadow:0 0 0.5em 0.1em #888;top:0;left:0;text-decoration:none}.zim_header.small{font-size:0.8em;}.zim_entry{background:#eee;margin:0 0.3em;padding:0.3em 0.6em;border:1px solid #ccc;border-radius:0.3em;text-decoration:none;color:#226}.zim_entry:hover{background:#eee}.zim_entry.selected{background:#eef}.zim_search{margin:0 0.5em;padding:0.2em 0.3em;background:#ffc;border:1px solid #aa8;border-radius:0.3em;}.zim_search_input,.zim_search_input:focus{padding:0.1em 0.3em;background:none;border:none;outline:none}.zim_results{z-index:200;display:none;margin:1em 4em;padding:1em 2em;background:#fff;border:1px solid #888;box-shadow: 0 0 0.5em 0.1em #888}.zim_results.active{display:block}#_zim_results_hint{font-size:0.8em;opacity:0.7}.hit{margin-bottom:1.5em}.hit .title{font-size:1.1em;color:#00c;margin:0.25em 0;display:block;}.snippet{font-size:0.8em;opacity:0.6}.snippet .heads{font-weight:bold;font-size:0.9em;margin-top:0.5em;}.hit_icon{vertical-align:middle;height:1.5em;margin-right: 0.5em;}\@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}}.blink{animation:blink 1s infinite ease-in-out}.hit_summary{opacity:0.5;font-size:0.7em;margin-bottom:0.5em}.hit .url{color:#484;font-size:0.7em;margin-bottom:0.3em}</style>";
                $mh .= <<EOT1;
 <script>
 var _zim_base = "$base";
@@ -981,7 +988,14 @@ function _zim_search() {
             if(hd.length>0) 
                sn = sn + '<div class=heads>' + hd + '</div>';
             var ico = e.base ? '<img class=hit_icon src="/' + e.base + e.icon + '">' : '';
-            o += '<div class=hit><a class=title href="' + e.url + '">' + ico + e.title + '</a>' + 
+            var lnk = e.url; 
+            lnk = lnk.replace(/\\//,'');
+            if(e.base)
+               lnk = lnk.replace(/\\//,': ');
+            o += '<div class=hit>'+
+               '<a class=title href="' + e.url + '">' + 
+               '<div class=url>' + lnk + '</div>' +
+               ico + e.title + '</a>' + 
                (1||sn ? '<div id=cite_'+cid+' class=snippet>'+sn+'</div>' : '') + '</div>';     // add snippets even it's empty, as we retrieve it later :-)
             xhr(e.url,(function(cid) {       // doing magick: we create snippets on the fly
                return function(data) {
