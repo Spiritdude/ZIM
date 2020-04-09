@@ -27,7 +27,7 @@ our $NAME = "ZIM";
 our $VERSION = '0.0.12';
 
 use strict;
-use Search::Xapian;
+use Search::Xapian ':all';
 use Time::HiRes 'time';
 # use IO::Uncompress::AnyUncompress qw(anyuncompress $AnyUncompressError); 
 use JSON;
@@ -594,13 +594,20 @@ sub fts {
       # -- 1) we set stemmer per index, given we have a single language per set (bad idea: gutenberg_mul_all has multiple languages)
       #    2) we define overall language for all indices (bad idea: we might miss results)
       #     => stemming is bad
+      my $qp = Search::Xapian::QueryParser->new();
       my $stem = Search::Xapian::Stem->new(($opts && $_xapian_lan{$opts->{lan}})||$_xapian_lan{lc($self->{lan})}||'en');      
-      $q = $stem->stem_word($q); 
-
-      # -- it seems we have to truncate the query for some indices (??!!)
-      # $q = substr($q,0,7);    # -- 'microscope' -> 'microsc'
-
-      my $enq = $db->enquire($q);
+      my $enq;
+      if(1) {
+         $qp->set_stemmer($stem);
+         $qp->set_database($db);
+         $qp->set_stemming_strategy(STEM_ALL);        # -- essential
+         $enq = Search::Xapian::Enquire->new($db);
+         $enq->set_query($qp->parse_query($q));
+      } else {
+         $q = $stem->stem_word($q); 
+         $enq = $db->enquire($q);
+      }
+      
       print "INF: #$$: xapian query: ".$enq->get_query()->get_description()."\n" if($self->{verbose}>1);
       $opts = $opts || { };
 
