@@ -24,7 +24,7 @@ package ZIM;
 # 2020/03/28: 0.0.1: initial version, just using zimHttpServer.pl and objectivy it step by step, added info() to return header plus some additional info
 
 our $NAME = "ZIM";
-our $VERSION = '0.0.12.a';
+our $VERSION = '0.0.12.b';
 
 use strict;
 use Search::Xapian ':all';
@@ -594,10 +594,10 @@ sub fts {
       # -- 1) we set stemmer per index, given we have a single language per set (bad idea: gutenberg_mul_all has multiple languages)
       #    2) we define overall language for all indices (bad idea: we might miss results)
       #     => stemming is bad
-      my $qp = Search::Xapian::QueryParser->new();
       my $stem = Search::Xapian::Stem->new(($opts && $_xapian_lan{$opts->{lan}})||$_xapian_lan{lc($self->{lan})}||'en');      
       my $enq;
       if(1) {
+         my $qp = Search::Xapian::QueryParser->new();
          $qp->set_stemmer($stem);
          $qp->set_database($db);
          $qp->set_stemming_strategy(STEM_ALL);        # -- essential
@@ -623,7 +623,7 @@ sub fts {
 
       foreach my $m (@r) {
          my $doc = $m->get_document();
-         my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, score => $m->get_percent()/100, url => "/".$doc->get_data() };
+         my $e = { _id => $m->get_docid(), rank => $m->get_rank()+1, weight => $m->get_weight(), score => $m->get_percent()/100, url => "/".$doc->get_data() };
          $self->article($e->{url},{metadata=>1});
          #foreach my $k (keys %{$self->{article}}) {
          foreach my $k (qw(title revision number namespace mimetype)) {
@@ -792,7 +792,7 @@ sub processRequest {
                         push(@r,map { $_->{icon} = $self->{catalog}->{$e}->{icon}; $_->{base} = $e; $_->{url} = "/$e$_->{url}"; $_ } @$rs);  # -- rebase
                         push(@{$res->{server}->{performed}},"fts $e:$in->{q}".sprintf(" %.1fms",(time()-$st)*1000)." ".(ref($meta)&&defined $meta->{total}?$meta->{total}." hits":""));
                      }
-                     @r = sort { $b->{score} <=> $a->{score} } @r;      # -- sort according score (merge all results)
+                     @r = sort { $b->{score}*$b->{weight} <=> $a->{score}*$a->{weight} } @r;      # -- sort according score (merge all results)
                      my $r = 0;
                      @r = map { $_->{rank} = $r++; $_ } @r;             # -- rerank
                      @r = splice(@r,$in->{offset},$in->{limit}) if($in->{offset}||$in->{limit});      # -- apply limit & offset
