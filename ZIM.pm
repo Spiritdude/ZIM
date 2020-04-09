@@ -446,11 +446,13 @@ sub article {
          }
          if($max < $min) {
             push(@{$self->{error}},"'$url' not found");
+            $self->{_url2id_cache}->{$url} = -1;            # -- make not-found also a hit: -1
             return '';
          }
       }
       $self->{_url2id_cache}->{$url} = $an;   
    }
+   push(@{$self->{error}},"'$url' not found"), return '' if($an<0);
    return $self->articleById($an,$opts);
 }
 
@@ -937,7 +939,6 @@ function _zim_search() {
    var _id = document.getElementById('_zim_results_hint');
    _id.innerHTML = 'searching ...';
    _id.classList.toggle('blink',true);
-
    var id = document.getElementById('_zim_results');
    id.classList.toggle('active',false);
    id.innerHTML = '...';
@@ -953,6 +954,7 @@ function _zim_search() {
       var o = '';
       //id.innerHTML = JSON.stringify(data);
       if(data && data.results && data.results.hits) {
+         window.scrollTo({top:0});     // make sure we see the results
          var _id = document.getElementById('_zim_results_hint');
          //_id.innerHTML = data.results.hits.length + ' results';
          var elapsed = fnum3(new Date()*1 - st) + 'ms';
