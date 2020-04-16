@@ -57,7 +57,7 @@ foreach my $fn (split(/,/,$arg->{conf})) {
    if(open(my $fh,"<",$fn)) {
       print "INF: reading <$fn> configuration\n" if($arg->{verbose});
       $_ = <$fh>;
-      s/(^|\n)\s*\#[^\n]*\n//mg;           # -- support '#' starting comments
+      s/(^|\n)\s*(#|\/\/)[^\n]*\n/$1\n/mg;           # -- support '#' and '//' starting comments
       my $c = eval { return from_json($_); };
       if($c) {
          foreach my $k (sort keys %$c) {     # -- merge configuration
